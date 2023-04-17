@@ -1,0 +1,4 @@
+books/*.txt
+.vscode/*
+bin/*
+model/*.bin
