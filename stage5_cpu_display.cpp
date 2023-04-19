@@ -85,9 +85,8 @@ vector<pair<double, size_t>> getMostCoveredTopics(size_t document_number, int nu
 
 void printTopicInformation(vector<pair<double, size_t>> most_covered_topics, size_t words_per_topic) {
     // C++ is mean so we need to open another ifstream on the same file
-    ifstream topic_models("model/topic_summary.txt");
-
     for (size_t i = 0; i < most_covered_topics.size(); i++) {
+        ifstream topic_models("model/topic_summary.txt");
         // Throw away unused data   
         size_t num_topics, num_documents, num_words;
         topic_models >> num_topics >> num_documents >> num_words;
@@ -96,22 +95,24 @@ void printTopicInformation(vector<pair<double, size_t>> most_covered_topics, siz
         most_covered_topics[i].second << " at probability " << most_covered_topics[i].first << " ----" << endl;
 
         // Seek through the file to find the topic
-        double word_prob; string word;
+        string word_prob; string word;
+        string line;
         for (size_t j = 0; j < most_covered_topics[i].second * words_per_topic; j++) {
-            topic_models >> word_prob >> word;
+            // FIXME - use getline
+            getline(topic_models, line);
         }
 
         for (size_t j = 0; j < words_per_topic; j++) {
-            topic_models >> word_prob >> word;
+            getline(topic_models, line);
+            word_prob = line.substr(0, line.find(" "));
+            word = line.substr(line.find(" ") + 1, line.size()); 
             cout << "P(" << word << ") = " << word_prob << endl;
         }
 
         cout << endl;
-        // Rewind the file
-        topic_models.seekg(0);
-    }
 
-    topic_models.close();
+        topic_models.close();
+    }
 }
 
 // stage5 bookFile.txt topTopics
