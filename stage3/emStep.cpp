@@ -4,7 +4,6 @@
 
 // C headers
 #include <string.h>
-#include <quadmath.h>
 
 // C++ headers
 #include <cstdlib>
@@ -77,7 +76,7 @@ void EMstep::genrandom(long seed) {
     genrandom();
 }
 
-void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, double backgroundLmProb,
+void cpuUpdate(EMstep &current, const EMstep &previous, const ModelData &modelData, double backgroundLmProb,
     double *P_zdw_B, double *P_zdw_j) {
     // E-step
     // Topic-major, then document-major order
@@ -87,7 +86,6 @@ void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     // P(Z_d,w | B)
     // FIXME - Precompute 1 - x to go faster
-    // Use J-M smoothing of the counts to get more accurate
     for (size_t document = 0; document < previous.num_documents; document++) {
         for (size_t word = 0; word < previous.vocab_size; word++) {
             double P_zdw_B_num = backgroundLmProb * modelData.background_lm[word];
