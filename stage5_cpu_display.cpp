@@ -97,8 +97,10 @@ void printTopicInformation(vector<pair<double, size_t>> most_covered_topics, siz
         // Seek through the file to find the topic
         string word_prob; string word;
         string line;
+        // Get rid of some extra data
+        getline(topic_models, line);
+
         for (size_t j = 0; j < most_covered_topics[i].second * words_per_topic; j++) {
-            // FIXME - use getline
             getline(topic_models, line);
         }
 

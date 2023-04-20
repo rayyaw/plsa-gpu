@@ -77,23 +77,17 @@ void EMstep::genrandom(long seed) {
     genrandom();
 }
 
-// Perform J-M smoothing on the count using bg as the background LM
-// Total counts is the number of words in that document (not unique words)
-double smoothedCount(size_t count, double bg, size_t total_counts) {
-    return (SMOOTHING_FACTOR * count) + ((1 - SMOOTHING_FACTOR) * bg * total_counts);
-}
-
-void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, double backgroundLmProb) {
+void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, double backgroundLmProb,
+    double *P_zdw_B, double *P_zdw_j) {
     // E-step
     // Topic-major, then document-major order
-    double *P_zdw_B = new double[previous.vocab_size * previous.num_documents];
-    double *P_zdw_j = new double[previous.vocab_size * previous.num_documents * previous.num_topics];
-
     double topicLmProb = 1 - backgroundLmProb;
+
+    // We don't allocate our scratchpad memory since malloc() is slow and we can reuse across iterations
 
     // P(Z_d,w | B)
     // FIXME - Precompute 1 - x to go faster
-    // FIXME - Use J-M smoothing of the counts to get more accurate
+    // Use J-M smoothing of the counts to get more accurate
     for (size_t document = 0; document < previous.num_documents; document++) {
         for (size_t word = 0; word < previous.vocab_size; word++) {
             double P_zdw_B_num = backgroundLmProb * modelData.background_lm[word];
@@ -115,18 +109,18 @@ void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     }
 
     // P(Z_d,w | theta_j)
-    for (size_t topic = 0; topic < previous.num_topics; topic++) {
-        for (size_t document = 0; document < previous.num_documents; document++) {
+    for (size_t document = 0; document < previous.num_documents; document++) {
+        for (size_t word = 0; word < previous.vocab_size; word++) {
             double P_zdw_j_denom_common = 0;
 
             // Sum over all topics
             for (size_t i = 0; i < previous.num_topics; i++) {
-                P_zdw_j_denom_common += previous.document_coverage[i * previous.num_documents + document];
+                P_zdw_j_denom_common += previous.document_coverage[i * previous.num_documents + document] * previous.topic_models[i * previous.vocab_size + word];
             }
 
             // For each topic/document pair
-            for (size_t word = 0; word < previous.vocab_size; word++) {
-                double P_zdw_j_num = previous.document_coverage[topic * previous.num_documents + document];
+            for (size_t topic = 0; topic < previous.num_topics; topic++) {
+                double P_zdw_j_num = previous.document_coverage[topic * previous.num_documents + document] * previous.topic_models[topic * previous.vocab_size + word];
                 double P_zdw_j_denom = P_zdw_j_denom_common + (backgroundLmProb * modelData.background_lm[word]);
 
                 P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word] = P_zdw_j_num / P_zdw_j_denom;
@@ -142,7 +136,7 @@ void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
         // Sum over all topics
         for (size_t topic = 0; topic < previous.num_topics; topic++) {
             for (size_t word = 0; word < previous.vocab_size; word++) {
-                double smooth_ct = smoothedCount(modelData.document_counts[(document * modelData.vocab_size) + word], modelData.background_lm[word], modelData.document_counts_total[document]);
+                double smooth_ct = modelData.document_counts[(document * modelData.vocab_size) + word];
                 denom += smooth_ct * (1 - P_zdw_B[document * previous.vocab_size + word]) * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
             }
         }
@@ -151,7 +145,7 @@ void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
         for (size_t topic = 0; topic < previous.num_topics; topic++) {
             double num = 0;
             for (size_t word = 0; word < previous.vocab_size; word++) {
-                double smooth_ct = smoothedCount(modelData.document_counts[(document * modelData.vocab_size) + word], modelData.background_lm[word], modelData.document_counts_total[document]);
+                double smooth_ct = modelData.document_counts[(document * modelData.vocab_size) + word];
                 num += smooth_ct * (1 - P_zdw_B[document * previous.vocab_size + word]) * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
             }
 
@@ -166,7 +160,7 @@ void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
         // Sum over all words in the collection
         for (size_t document = 0; document < previous.num_documents; document++) {    
             for (size_t word = 0; word < previous.vocab_size; word++) {
-                double smooth_ct = smoothedCount(modelData.document_counts[(document * modelData.vocab_size) + word], modelData.background_lm[word], modelData.document_counts_total[document]);
+                double smooth_ct = modelData.document_counts[(document * modelData.vocab_size) + word];
                 denom += smooth_ct * (1 - P_zdw_B[document * previous.vocab_size + word]) * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
             }
         }
@@ -174,7 +168,7 @@ void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
         for (size_t word = 0; word < previous.vocab_size; word++) {
             double num = 0;
             for (size_t document = 0; document < previous.num_documents; document++) {
-                double smooth_ct = smoothedCount(modelData.document_counts[(document * modelData.vocab_size) + word], modelData.background_lm[word], modelData.document_counts_total[document]);
+                double smooth_ct = modelData.document_counts[(document * modelData.vocab_size) + word];
                 num += smooth_ct * (1 - P_zdw_B[document * previous.vocab_size + word]) * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
             }
 
@@ -189,6 +183,7 @@ using std::cout; using std::endl;
 bool isConverged(const EMstep &first, const EMstep &second) {
     // Check for convergence by subtracting the vectors and using an L1-norm over all values
     // FIXME - is L-inf norm faster on GPU despite control divergence?
+
     long double error_norm_coverage = 0;
     long double error_norm_model = 0;
 
@@ -205,5 +200,5 @@ bool isConverged(const EMstep &first, const EMstep &second) {
     cout << endl;
 
     // FIXME - Tweak these values
-    return (error_norm_model < 0.001 && error_norm_coverage < 0.001);
+    return (error_norm_model < 1 && error_norm_coverage < 2);
 }

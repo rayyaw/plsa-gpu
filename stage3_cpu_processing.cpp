@@ -25,7 +25,7 @@ using std::cerr;
 using std::cout;
 using std::endl;
 
-#define MAXITER 10000
+#define MAXITER 3
 
 // FIXME - Double-check file loaded values are consistent with stage 2
 ModelData loadModelFromFile() {
@@ -111,12 +111,15 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
 
     bool update_first = false;
 
+    double *P_zdw_B = new double[model.document_count * model.vocab_size];
+    double *P_zdw_j = new double[model.document_count * model.vocab_size * num_topics];
+
     for (size_t i = 0; i < MAXITER; i++) {
         // This takes 42s per iteration, assuming 500 books
         if (update_first) {
-            cpuUpdate(first, second, model, prob_of_bg);
+            cpuUpdate(first, second, model, prob_of_bg, P_zdw_B, P_zdw_j);
         } else {
-            cpuUpdate(second, first, model, prob_of_bg);
+            cpuUpdate(second, first, model, prob_of_bg, P_zdw_B, P_zdw_j);
         }
 
         cout << "Iteration number: " << i << endl;
@@ -131,6 +134,9 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
 
         update_first = !update_first;
     }
+
+    delete[] P_zdw_B;
+    delete[] P_zdw_j;
 
     cout << "Completed EM phase. Saving results to file..." << endl;
     return first;

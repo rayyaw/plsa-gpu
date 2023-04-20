@@ -184,8 +184,8 @@ int main(int argc, char *argv[]) {
         }
 
         // Use the square to help discriminate against common words
-        background_model[i] = (double) total_count * total_count;
-        normalization_factor += (double) total_count * total_count;
+        background_model[i] = (double) total_count;
+        normalization_factor += (double) total_count;
     }
 
     for (size_t i = 0; i < word_encodings.size(); i++) {
