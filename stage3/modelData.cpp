@@ -7,7 +7,6 @@ ModelData::ModelData(size_t document_count, size_t vocab_size) {
     this -> vocab_size = vocab_size;
 
     document_counts = new size_t[document_count * vocab_size];
-    document_counts_total = new size_t[document_count];
     background_lm = new double[vocab_size];
 }
 
@@ -16,16 +15,13 @@ ModelData::ModelData(const ModelData &other) {
     vocab_size = other.vocab_size;
 
     document_counts = new size_t[document_count * vocab_size];
-    document_counts_total = new size_t[document_count];
     background_lm = new double[vocab_size];
 
     memcpy(document_counts, other.document_counts, sizeof(size_t) * document_count * vocab_size);
-    memcpy(document_counts_total, other.document_counts_total, sizeof(size_t) * document_count);
     memcpy(background_lm, other.background_lm, sizeof(double) * vocab_size);
 }
 
 ModelData::~ModelData() {
     delete[] document_counts;
-    delete[] document_counts_total;
     delete[] background_lm;
 }

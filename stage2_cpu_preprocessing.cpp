@@ -196,27 +196,8 @@ int main(int argc, char *argv[]) {
     background_model_file.write(reinterpret_cast<const char*>(background_model), sizeof(double) * vocab_size);
     background_model_file.close();
 
-    // Save the total counts within each document to a file
-    cout << "Calculating total document counts..." << endl;
-    size_t *document_totals = new size_t[document_count];
-
-    for (size_t i = 0; i < document_count; i++) {
-        size_t total_count = 0;
-
-        for (size_t j = 0; j < vocab_size; j++) {
-            total_count += encoded_word_counts[i * word_encodings.size() + j];
-        }
-
-        document_totals[i] = total_count;
-    }
-
-    ofstream total_count_file("model/total_document_counts.bin", std::ios::binary);
-    total_count_file.write(reinterpret_cast<const char*>(document_totals), sizeof(size_t) * document_count);
-    total_count_file.close();
-
     // Free resources before returning
     delete[] background_model;
-    delete[] document_totals;
     delete[] encoded_word_counts;
 
     cout << "Done!" << endl;

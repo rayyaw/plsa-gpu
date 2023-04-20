@@ -9,7 +9,6 @@ class ModelData {
 
     // Doc counts will be in document-major order
     size_t *document_counts = NULL;
-    size_t *document_counts_total = NULL;
     double *background_lm = NULL;
 
     /**

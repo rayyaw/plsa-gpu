@@ -25,9 +25,8 @@ using std::cerr;
 using std::cout;
 using std::endl;
 
-#define MAXITER 3
+#define MAXITER 2
 
-// FIXME - Double-check file loaded values are consistent with stage 2
 ModelData loadModelFromFile() {
     // Load the counts and background LM from file.
     FILE *count_file = fopen("model/counts.bin", "rb");
@@ -59,18 +58,6 @@ ModelData loadModelFromFile() {
 
     fread(model.background_lm, sizeof(size_t), model.vocab_size, background_lm_file);
     fclose(background_lm_file);
-
-    cout << "Loading full document counts..." << endl;
-
-    FILE *total_count_file = fopen("model/total_document_counts.bin", "rb");
-
-    if (!total_count_file) {
-        cerr << "Unable to open total document count file. Please check your data." << endl;
-        exit(-1);
-    }
-
-    fread(model.document_counts_total, sizeof(size_t), model.document_count, total_count_file);
-    fclose(total_count_file);
 
     cout << "File loading completed. Proceeding to computation phase." << endl;
 
