@@ -222,11 +222,8 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     for (size_t document = 0; document < previous.num_documents; document++) {
         for (size_t word = 0; word < previous.vocab_size; word++) {
             double P_zdw_B_num = backgroundLmProb * modelData.background_lm[word];
-            double P_zdw_B_denom = backgroundLmProb * modelData.background_lm[word];
-
-            double sum_of_all_topics = denoms_common[document * previous.vocab_size + word] * topicLmProb;
-
-            P_zdw_B_denom += sum_of_all_topics;
+            double P_zdw_B_denom = (backgroundLmProb * modelData.background_lm[word]) +
+                (denoms_common[document * previous.vocab_size + word] * topicLmProb);
 
             P_zdw_B[document * previous.vocab_size] = P_zdw_B_num / P_zdw_B_denom;
         }
@@ -235,12 +232,11 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     // P(Z_d,w | theta_j)
     for (size_t document = 0; document < previous.num_documents; document++) {
         for (size_t word = 0; word < previous.vocab_size; word++) {
-            double P_zdw_j_denom_common = denoms_common[document * previous.vocab_size + word];
 
             // For each topic/document pair
             for (size_t topic = 0; topic < previous.num_topics; topic++) {
                 double P_zdw_j_num = previous.document_coverage[topic * previous.num_documents + document] * previous.topic_models[topic * previous.vocab_size + word];
-                double P_zdw_j_denom = P_zdw_j_denom_common + (backgroundLmProb * modelData.background_lm[word]);
+                double P_zdw_j_denom = denoms_common[document * previous.vocab_size + word] + (backgroundLmProb * modelData.background_lm[word]);
 
                 P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word] = P_zdw_j_num / P_zdw_j_denom;
             }
