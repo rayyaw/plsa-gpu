@@ -235,12 +235,7 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     // P(Z_d,w | theta_j)
     for (size_t document = 0; document < previous.num_documents; document++) {
         for (size_t word = 0; word < previous.vocab_size; word++) {
-            double P_zdw_j_denom_common = 0;
-
-            // Sum over all topics
-            for (size_t i = 0; i < previous.num_topics; i++) {
-                P_zdw_j_denom_common += previous.document_coverage[i * previous.num_documents + document] * previous.topic_models[i * previous.vocab_size + word];
-            }
+            double P_zdw_j_denom_common = denoms_common[document * previous.vocab_size + word];
 
             // For each topic/document pair
             for (size_t topic = 0; topic < previous.num_topics; topic++) {
