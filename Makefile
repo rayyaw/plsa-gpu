@@ -34,24 +34,15 @@ stage5_cpu: stage5_cpu_display.cpp
 all_cpu: stage2_cpu stage3_cpu stage4_cpu stage5_cpu
 
 gpu: gpu/gpu.cpp
-	g++ -o build/gpu.o -c gpu/gpu.cpp -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
+	clang++ -o build/gpu.o -c gpu/gpu.cpp -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
 
 io: io/io.cpp
-	g++ -o build/io.o -c io/io.cpp
+	clang++ -o build/io.o -c io/io.cpp
 
 stage2_gpu_cpp: stage2_gpu_preprocessing.cpp
-	g++ -c stage2_gpu_preprocessing.cpp -o build/stage2_gpu_cpp.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
+	clang++ -c stage2_gpu_preprocessing.cpp -o build/stage2_gpu_cpp.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
 
 stage2_gpu: gpu io stage2_gpu_cpp
-	g++ build/stage2_gpu_cpp.o build/io.o build/gpu.o -o bin/stage2_gpu -I 'C:/Program Files (x86)/OCL_SDK_Light/include/' -L 'C:/Program Files (x86)/OCL_SDK_Light/lib/x86_64/' -lOpenCL
+	clang++ build/stage2_gpu_cpp.o build/io.o build/gpu.o -o bin/stage2_gpu -I 'C:/Program Files (x86)/OCL_SDK_Light/include/' -L 'C:/Program Files (x86)/OCL_SDK_Light/lib/x86_64/' -lOpenCL
 
-em_step_gpu: stage3/emStepGpu.cpp
-	g++ -c stage3/emStepGpu.cpp -o build/em_step_gpu.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
-
-stage3_gpu_cpp: stage3_gpu_processing.cpp
-	g++ -c stage3_gpu_processing.cpp -O3 -o build/stage3_gpu_cpp.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
-
-stage3_gpu: stage3_gpu_cpp em_step_gpu model_data em_step gpu io
-	g++ build/gpu.o build/io.o build/stage3_gpu_cpp.o build/em_step_gpu.o build/model_data.o build/em_step.o -o bin/stage3_gpu -I 'C:/Program Files (x86)/OCL_SDK_Light/include/' -L 'C:/Program Files (x86)/OCL_SDK_Light/lib/x86_64/' -lOpenCL
-
-all_gpu: stage2_gpu stage3_gpu
+all_gpu: stage2_gpu

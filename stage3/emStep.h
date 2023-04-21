@@ -45,11 +45,8 @@ class EMstep {
  * @return EMstep The probabilities after an update step.
  * 
  */
-void cpuUpdate(EMstep &current, const EMstep &previous, const ModelData &ModelData, double backgroundLmProb,
+void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &ModelData, double backgroundLmProb,
     double *P_zdw_B, double *P_zdw_j);
-
-// GPU-accelerated version of the cpuUpdate function. See cpuUpdate.
-void gpuUpdate(EMstep &current, const EMstep &previous, const ModelData &ModelData, double backgroundLmProb);
 
 /**
  * @brief Check if the EM algorithm has converged. The order of parameters does not matter.
