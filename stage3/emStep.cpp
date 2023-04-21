@@ -207,6 +207,7 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     // Transpose document coverage in preparation for sgemm
     // FIXME - GPU-accelerated transpose
+    // FIXME - segfault
     for (int i = 0; i < previous.num_documents; i++) {
         for (int j = 0; j < previous.num_topics; j++) {
             doc_coverage_T[i * previous.num_topics + j] = previous.document_coverage[j * previous.num_documents + i];
@@ -217,14 +218,14 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     PRINT_ON_ERROR;
 
     // P(Z_d,w | B)
+    // FIXME - Precompute 1 - x to go faster
     for (size_t document = 0; document < previous.num_documents; document++) {
         for (size_t word = 0; word < previous.vocab_size; word++) {
             double P_zdw_B_num = backgroundLmProb * modelData.background_lm[word];
             double P_zdw_B_denom = (backgroundLmProb * modelData.background_lm[word]) +
                 (denoms_common[document * previous.vocab_size + word] * topicLmProb);
 
-            // Precomputing 1-x allows us to call sgemm directly in the next steps
-            P_zdw_B[document * previous.vocab_size + word] = 1 - (P_zdw_B_num / P_zdw_B_denom);
+            P_zdw_B[document * previous.vocab_size] = P_zdw_B_num / P_zdw_B_denom;
         }
     }
 
@@ -251,7 +252,7 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
         for (size_t topic = 0; topic < previous.num_topics; topic++) {
             for (size_t word = 0; word < previous.vocab_size; word++) {
                 double smooth_ct = modelData.document_counts[(document * modelData.vocab_size) + word];
-                denom += smooth_ct * P_zdw_B[document * previous.vocab_size + word] * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
+                denom += smooth_ct * (1 - P_zdw_B[document * previous.vocab_size + word]) * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
             }
         }
 
@@ -260,7 +261,7 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
             double num = 0;
             for (size_t word = 0; word < previous.vocab_size; word++) {
                 double smooth_ct = modelData.document_counts[(document * modelData.vocab_size) + word];
-                num += smooth_ct * P_zdw_B[document * previous.vocab_size + word] * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
+                num += smooth_ct * (1 - P_zdw_B[document * previous.vocab_size + word]) * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
             }
 
             current.document_coverage[topic * previous.num_documents + document] = num / denom;
@@ -275,7 +276,7 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
         for (size_t document = 0; document < previous.num_documents; document++) {    
             for (size_t word = 0; word < previous.vocab_size; word++) {
                 double smooth_ct = modelData.document_counts[(document * modelData.vocab_size) + word];
-                denom += smooth_ct * P_zdw_B[document * previous.vocab_size + word] * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
+                denom += smooth_ct * (1 - P_zdw_B[document * previous.vocab_size + word]) * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
             }
         }
 
@@ -283,7 +284,7 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
             double num = 0;
             for (size_t document = 0; document < previous.num_documents; document++) {
                 double smooth_ct = modelData.document_counts[(document * modelData.vocab_size) + word];
-                num += smooth_ct * P_zdw_B[document * previous.vocab_size + word] * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
+                num += smooth_ct * (1 - P_zdw_B[document * previous.vocab_size + word]) * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
             }
 
             current.topic_models[topic * previous.vocab_size + word] = num / denom;
