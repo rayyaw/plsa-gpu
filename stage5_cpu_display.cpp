@@ -48,6 +48,8 @@ size_t getIndexFromFilename(const char *filename) {
     return -1;
 }
 
+
+// FIXME - This is incorrect, document_coverage.bin is in topic-major order
 vector<pair<double, size_t>> getMostCoveredTopics(size_t document_number, int num_topics, size_t total_topics, size_t num_documents, size_t words_per_topic) {
     vector<pair<double, size_t>> most_covered_topics = vector<pair<double, size_t>>(num_topics);
     
@@ -69,7 +71,7 @@ vector<pair<double, size_t>> getMostCoveredTopics(size_t document_number, int nu
 
         for (size_t j = 0; j < total_topics; j++) {
             // Handle the edge case of being the first element
-            if (document_coverage[i*num_documents + document_number] > current && 
+            if (document_coverage[j*num_documents + document_number] > current && 
                (i == 0 || document_coverage[j*num_documents + document_number] < most_covered_topics[i-1].first)) {
                 current = document_coverage[j*num_documents + document_number];
                 current_idx = j;

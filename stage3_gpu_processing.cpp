@@ -26,7 +26,7 @@ using std::cerr;
 using std::cout;
 using std::endl;
 
-#define MAXITER 2
+#define MAXITER 3
 
 ModelData loadModelFromFile() {
     // Load the counts and background LM from file.
@@ -105,7 +105,6 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     double *P_zdw_j = new double[model.document_count * model.vocab_size * num_topics];
 
     for (size_t i = 0; i < MAXITER; i++) {
-        // This takes 42s per iteration, assuming 500 books
         if (update_first) {
             gpuUpdate(first, second, model, prob_of_bg, P_zdw_B, P_zdw_j);
         } else {
