@@ -3,6 +3,8 @@
 #include <string>
 
 #include "gpu.h"
+
+#include "../io/io.h"
 #include "../utils/listWithSize.h"
 
 using std::string;
@@ -171,6 +173,21 @@ cl_kernel gpu::compileKernelIfNotExists(const char *kernel, const char *kernelNa
     
     if (available_kernels -> find(kernelName) == available_kernels -> end()) {
         (*available_kernels)[kernelName] = compileKernel(kernel, kernelName, err);
+    }
+
+    return (*available_kernels)[kernelName];
+}
+
+cl_kernel gpu::compileKernelFromFile(const char *filename, const char *kernelName, cl_int *err) {
+    SET_ERROR_IF_NULL;
+
+    if (!kernelExists(kernelName)) {
+        const char *kernel_string = io::readKernel(filename);
+        gpu::compileKernelIfNotExists(kernel_string, kernelName, err);
+    }
+
+    if (*err != CL_SUCCESS) {
+        return cl_kernel();
     }
 
     return (*available_kernels)[kernelName];

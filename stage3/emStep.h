@@ -48,8 +48,7 @@ class EMstep {
 void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &ModelData, double backgroundLmProb,
     double *P_zdw_B, double *P_zdw_j);
 
-// You should comment this out when compiling without a GPU
-void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &ModelData, double backgroundLmProb,
+void gpuUpdate(EMstep &current, const EMstep &previous, const ModelData &ModelData, double backgroundLmProb,
     double *P_zdw_B, double *P_zdw_j);
 
 /**

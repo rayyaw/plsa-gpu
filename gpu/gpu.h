@@ -65,6 +65,16 @@ namespace gpu {
     cl_kernel compileKernelIfNotExists(const char *kernel, const char *kernelName, cl_int *err);
 
     /**
+     * @brief Compile an OpenCl kernel from file, or do nothing if the specified kernel already exists.
+     * 
+     * @param filename The file to use.
+     * @param kernelName The name of the kernel function.
+     * @param err Modified on failure. If this is not equal to CL_SUCCESS, an error has occurred.
+     * @return cl_kernel The kernel with the provided source. Will be released automatically on gpu::destroyGpuData().
+     */
+    cl_kernel compileKernelFromFile(const char *filename, const char *kernelName, cl_int *err);
+
+    /**
      * @brief Check if the specified kernel is already compiled
      * 
      * @param kernelName The kernel name
