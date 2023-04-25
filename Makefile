@@ -13,8 +13,7 @@ stage2_cpu: stage2_cpu_preprocessing.cpp
 model_data: stage3/modelData.cpp stage3/modelData.h
 	g++ -c stage3/modelData.cpp -o build/model_data.o
 
-# Delete the -I argument to compile on the CPU
-em_step: stage3/emStep.h stage3/emStep.cpp
+em_step: model_data stage3/emStep.h stage3/emStep.cpp
 	g++ -c stage3/emStep.cpp -o build/em_step.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
 
 stage3_cpu_cpp: stage3_cpu_processing.cpp
@@ -43,13 +42,10 @@ io: io/io.cpp
 linalg: linalg/sgemm.cpp
 	g++ -c linalg/sgemm.cpp -o build/linalg.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
 
-em_step_gpu: stage3/emStepGpu.cpp
-	g++ -c stage3/emStepGpu.cpp -o build/em_step_gpu.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
-
 stage3_gpu_cpp: stage3_gpu_processing.cpp
 	g++ -c stage3_gpu_processing.cpp -O3 -o build/stage3_gpu_cpp.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
 
-stage3_gpu: io linalg gpu stage3_gpu_cpp model_data em_step em_step_gpu
-	g++ build/em_step.o build/em_step_gpu.o build/model_data.o build/stage3_gpu_cpp.o build/io.o build/linalg.o build/gpu.o -o bin/stage3_gpu -I 'C:/Program Files (x86)/OCL_SDK_Light/include/' -L 'C:/Program Files (x86)/OCL_SDK_Light/lib/x86_64/' -lOpenCL
+stage3_gpu: io linalg gpu stage3_gpu_cpp model_data em_step
+	g++ build/em_step.o build/model_data.o build/stage3_gpu_cpp.o build/io.o build/linalg.o build/gpu.o -o bin/stage3_gpu -I 'C:/Program Files (x86)/OCL_SDK_Light/include/' -L 'C:/Program Files (x86)/OCL_SDK_Light/lib/x86_64/' -lOpenCL
 
 all_gpu: stage3_gpu
