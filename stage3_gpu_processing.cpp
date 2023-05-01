@@ -12,6 +12,7 @@
 // C headers
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 // C++ headers
 #include <cstddef>
@@ -105,14 +106,18 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     double *P_zdw_j = new double[model.document_count * model.vocab_size * num_topics];
 
     for (size_t i = 0; i < MAXITER; i++) {
-        // This takes 42s per iteration, assuming 500 books
+        // This takes 42s per iteration, assuming 500 books (on the CPU)
+        // On the GPU this takes 34s per iteration, assuming 400 books
+        time_t start_t = time(NULL);
         if (update_first) {
             gpuUpdate(first, second, model, prob_of_bg, P_zdw_B, P_zdw_j);
         } else {
             gpuUpdate(second, first, model, prob_of_bg, P_zdw_B, P_zdw_j);
         }
+        time_t end_t = time(NULL);
 
         cout << "Iteration number: " << i << endl;
+        cout << "Time taken: " << end_t - start_t << "s" << endl;
 
         if (isConverged(first, second)) {
             if (update_first) {

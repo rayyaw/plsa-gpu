@@ -2,7 +2,7 @@
 #include "emStep.h"
 #include "modelData.h"
 
-// Delete this line to compile without a GPU
+#include "../gpu/gpu.h"
 #include "../linalg/sgemm.h"
 
 // C headers
@@ -207,7 +207,6 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     // Transpose document coverage in preparation for sgemm
     // FIXME - GPU-accelerated transpose
-    // FIXME - segfault
     for (int i = 0; i < previous.num_documents; i++) {
         for (int j = 0; j < previous.num_topics; j++) {
             doc_coverage_T[i * previous.num_topics + j] = previous.document_coverage[j * previous.num_documents + i];
@@ -267,6 +266,49 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
             current.document_coverage[topic * previous.num_documents + document] = num / denom;
         }
     }
+
+    // NOTE: This version will hang or crash!!
+    /*
+    // Compile kernel
+    cl_kernel topicUpdateKernel = gpu::compileKernelFromFile("kernels/mstep.cl", "computeTopicUpdate", &err); PRINT_ON_ERROR;
+    
+    // Copy all data to the GPU
+    cl_mem document_counts_d = gpu::hostToDeviceCopy<cl_ulong>((cl_ulong*) modelData.document_counts, previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
+    cl_mem P_zdw_B_d = gpu::hostToDeviceCopy<double>(P_zdw_B, previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
+    cl_mem P_zdw_j_d = gpu::hostToDeviceCopy<double>(P_zdw_j, previous.num_topics * previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
+    cl_mem topic_models_d = gpu::deviceOutputAllocate(sizeof(double) * previous.num_topics * previous.vocab_size, &err); PRINT_ON_ERROR;
+    
+    // Set arguments
+    err = clSetKernelArg(topicUpdateKernel, 0, sizeof(P_zdw_B_d), (void*) &P_zdw_B_d); PRINT_ON_ERROR;
+    err = clSetKernelArg(topicUpdateKernel, 1, sizeof(P_zdw_j_d), (void*) &P_zdw_j_d); PRINT_ON_ERROR;
+    err = clSetKernelArg(topicUpdateKernel, 2, sizeof(document_counts_d), (void*) &document_counts_d); PRINT_ON_ERROR;
+    err = clSetKernelArg(topicUpdateKernel, 3, sizeof(topic_models_d), (void*) &topic_models_d); PRINT_ON_ERROR;
+    err = clSetKernelArg(topicUpdateKernel, 4, sizeof(previous.num_documents), (void*) &previous.num_documents); PRINT_ON_ERROR;
+    err = clSetKernelArg(topicUpdateKernel, 5, sizeof(previous.vocab_size), (void*) &previous.vocab_size); PRINT_ON_ERROR;
+    err = clSetKernelArg(topicUpdateKernel, 6, sizeof(previous.num_topics), (void*) &previous.num_topics); PRINT_ON_ERROR;
+    
+    // Launch kernel
+    size_t blockSizeX = 4;
+    size_t blockSizeY = 64;
+
+    utils::ListWithSize<size_t> gridDim = utils::ListWithSize<size_t>();
+    gridDim.num_items = 2;
+    gridDim.items = new size_t[2];
+    gridDim.items[0] = ceil((previous.num_topics * 1.0) / blockSizeX) * blockSizeX;
+    gridDim.items[1] = 1; //ceil((previous.vocab_size * 1.0) / blockSizeY) * blockSizeY;
+
+    utils::ListWithSize<size_t> blockDim = utils::ListWithSize<size_t>();
+    blockDim.num_items = 2;
+    blockDim.items = new size_t[2];
+    blockDim.items[0] = blockSizeX;
+    blockDim.items[1] = 1; //blockSizeY;
+
+    gpu::launchKernel(topicUpdateKernel, gridDim, blockDim);
+
+    err = gpu::copyDeviceToHost<double>(topic_models_d, current.topic_models, previous.num_topics * previous.vocab_size); PRINT_ON_ERROR;
+
+    cerr << "Comp Done!" << endl;
+    */
 
     // Topic models
     for (size_t topic = 0; topic < previous.num_topics; topic++) {

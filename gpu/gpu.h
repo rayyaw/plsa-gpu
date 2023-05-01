@@ -73,6 +73,16 @@ namespace gpu {
     bool kernelExists(const char *kernelName);
 
     /**
+     * @brief Compile the kernel from the file, if it doesn't exist already.
+     * 
+     * @param filename The name of the file containing the kernel
+     * @param kernelName The name of the kernel
+     * @param err Modified on failure. If this is not equal to CL_SUCCESS, an error has occurred.
+     * @return The kernel with the provided source. Will be released automatically on gpu::destroyGpuData().
+     */
+    cl_kernel compileKernelFromFile(const char *filename, const char *kernelName, cl_int *err);
+
+    /**
      * @brief Create a device memory array, and copy the host memory onto it
      * 
      * @param hostMem The host memory, along with its length. num_items should be the number of ITEMS, not bytes.
@@ -83,6 +93,20 @@ namespace gpu {
     cl_mem hostToDeviceCopy(utils::ListWithSize<T> hostMem, cl_int *err) {
         SET_ERROR_IF_NULL;
         return clCreateBuffer(*context, CL_MEM_COPY_HOST_PTR, hostMem.num_items * sizeof(T), hostMem.items, err);
+    }
+
+    /**
+     * @brief Create a device memory array, and copy the host memory onto it
+     * 
+     * @param hostMem The host memory, along with its length. num_items should be the number of ITEMS, not bytes.
+     * @param nitems The number of items to use.
+     * @param err Modified on failure. If this is not equal to CL_SUCCESS, an error has occurred.
+     * @return cl_mem The device global memory that was allocated. It is your responsibility to release it.
+     */
+    template <typename T>
+    cl_mem hostToDeviceCopy(T *hostMem, size_t nitems, cl_int *err) {
+        SET_ERROR_IF_NULL;
+        return clCreateBuffer(*context, CL_MEM_COPY_HOST_PTR, nitems * sizeof(T), hostMem, err);
     }
 
     /**
@@ -105,6 +129,19 @@ namespace gpu {
     cl_int copyDeviceToHost(cl_mem deviceMem, utils::ListWithSize<T> hostMem) {
         return clEnqueueReadBuffer(command_queues -> items[0], deviceMem, CL_TRUE, 0, hostMem.num_items * sizeof(T), hostMem.items, 0, NULL, NULL);
     }
+
+    /**
+     * @brief Copy device memory back to the host. Blocking call.
+     * 
+     * @param deviceMem The device memory to copy
+     * @param hostMem The host buffer to copy into. Must be allocated before calling the function. num_items should already be set
+     * @return cl_int An error code, or CL_SUCCESS if no error occurred
+     */
+    template <typename T>
+    cl_int copyDeviceToHost(cl_mem deviceMem, T *hostMem, size_t nitems) {
+        return clEnqueueReadBuffer(command_queues -> items[0], deviceMem, CL_TRUE, 0, nitems * sizeof(T), hostMem, 0, NULL, NULL);
+    }
+
 
     /**
      * @brief Launch the specified kernel, and block until it's done.

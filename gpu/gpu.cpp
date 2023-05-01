@@ -3,6 +3,7 @@
 #include <string>
 
 #include "gpu.h"
+#include "../io/io.h"
 #include "../utils/listWithSize.h"
 
 using std::string;
@@ -179,6 +180,18 @@ cl_kernel gpu::compileKernelIfNotExists(const char *kernel, const char *kernelNa
 bool gpu::kernelExists(const char *kernelName) {
     return available_kernels -> find(kernelName) != available_kernels -> end();
 }
+
+cl_kernel gpu::compileKernelFromFile(const char *filename, const char *kernelName, cl_int *err) {
+    SET_ERROR_IF_NULL;
+    
+    if (!kernelExists(kernelName)) {
+        const char *kernel_string = io::readKernel(filename);
+        compileKernelIfNotExists(kernel_string, kernelName, err);
+    } 
+
+    return (*available_kernels)[kernelName];
+}
+
 cl_mem gpu::deviceOutputAllocate(size_t nbytes, cl_int *err) {
     SET_ERROR_IF_NULL;
     return clCreateBuffer(*context, CL_MEM_WRITE_ONLY, nbytes, NULL, err);
