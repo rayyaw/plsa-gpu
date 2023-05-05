@@ -267,11 +267,11 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
         }
     }
 
-    // NOTE: This version will hang or crash!!
-    /*
+    // Topic models
     // Compile kernel
     cl_kernel topicUpdateKernel = gpu::compileKernelFromFile("kernels/mstep.cl", "computeTopicUpdate", &err); PRINT_ON_ERROR;
-    
+    //cl_kernel reductionKernel = gpu::compileKernelFromFile("kernels/mstep.cl", "reduceSum", &err); PRINT_ON_ERROR;
+
     // Copy all data to the GPU
     cl_mem document_counts_d = gpu::hostToDeviceCopy<cl_ulong>((cl_ulong*) modelData.document_counts, previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
     cl_mem P_zdw_B_d = gpu::hostToDeviceCopy<double>(P_zdw_B, previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
@@ -288,50 +288,43 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     err = clSetKernelArg(topicUpdateKernel, 6, sizeof(previous.num_topics), (void*) &previous.num_topics); PRINT_ON_ERROR;
     
     // Launch kernel
-    size_t blockSizeX = 4;
-    size_t blockSizeY = 64;
+    size_t blockSize = 256;
 
     utils::ListWithSize<size_t> gridDim = utils::ListWithSize<size_t>();
     gridDim.num_items = 2;
     gridDim.items = new size_t[2];
-    gridDim.items[0] = ceil((previous.num_topics * 1.0) / blockSizeX) * blockSizeX;
-    gridDim.items[1] = 1; //ceil((previous.vocab_size * 1.0) / blockSizeY) * blockSizeY;
+    gridDim.items[0] = previous.num_topics;
+    gridDim.items[1] = ceil((previous.vocab_size * 1.0) / blockSize) * blockSize;
 
     utils::ListWithSize<size_t> blockDim = utils::ListWithSize<size_t>();
     blockDim.num_items = 2;
     blockDim.items = new size_t[2];
-    blockDim.items[0] = blockSizeX;
-    blockDim.items[1] = 1; //blockSizeY;
+    blockDim.items[0] = 1;
+    blockDim.items[1] = blockSize;
 
     gpu::launchKernel(topicUpdateKernel, gridDim, blockDim);
 
     err = gpu::copyDeviceToHost<double>(topic_models_d, current.topic_models, previous.num_topics * previous.vocab_size); PRINT_ON_ERROR;
 
-    cerr << "Comp Done!" << endl;
-    */
+    clReleaseMemObject(topic_models_d);
+    clReleaseMemObject(P_zdw_B_d);
+    clReleaseMemObject(P_zdw_j_d);
+    clReleaseMemObject(document_counts_d);
 
-    // Topic models
-    for (size_t topic = 0; topic < previous.num_topics; topic++) {
+    // FIXME - Perform this step on the GPU instead
+    for (size_t i = 0; i < previous.num_topics; i++) {
         double denom = 0;
 
-        // Sum over all words in the collection
-        for (size_t document = 0; document < previous.num_documents; document++) {    
-            for (size_t word = 0; word < previous.vocab_size; word++) {
-                double smooth_ct = modelData.document_counts[(document * modelData.vocab_size) + word];
-                denom += smooth_ct * (1 - P_zdw_B[document * previous.vocab_size + word]) * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
-            }
+        for (size_t j = 0; j < previous.vocab_size; j++) {
+            denom += current.topic_models[i * previous.vocab_size + j];
         }
 
-        for (size_t word = 0; word < previous.vocab_size; word++) {
-            double num = 0;
-            for (size_t document = 0; document < previous.num_documents; document++) {
-                double smooth_ct = modelData.document_counts[(document * modelData.vocab_size) + word];
-                num += smooth_ct * (1 - P_zdw_B[document * previous.vocab_size + word]) * P_zdw_j[((topic * previous.num_documents) + document) * previous.vocab_size + word];
-            }
-
-            current.topic_models[topic * previous.vocab_size + word] = num / denom;
+        for (size_t j = 0; j < previous.vocab_size; j++) {
+            current.topic_models[i * previous.vocab_size + j] /= denom;
         }
     }
+
+    cerr << "Comp Done!" << endl;
 
     delete[] doc_coverage_T;
     delete[] denoms_common;
@@ -348,12 +341,17 @@ bool isConverged(const EMstep &first, const EMstep &second) {
         error_norm_coverage += abs(first.document_coverage[i] - second.document_coverage[i]);
     }
 
+    size_t nnz=0;
+
     for (size_t i = 0; i < first.num_topics * first.vocab_size; i++) {
         error_norm_model += abs(first.topic_models[i] - second.topic_models[i]);
+        if (second.topic_models[i] != 0) nnz++;
     }
 
     cout << "Model error: " << error_norm_model << endl;
     cout << "Coverage error: " << error_norm_coverage << endl;
+    cout << "Num nonzeros: " << nnz << endl;
+    cout << "o " << second.topic_models[0] << " " << second.topic_models[1] << endl;
     cout << endl;
 
     // FIXME - Tweak these values

@@ -4,7 +4,7 @@ APLSA (Accelerated Probabilistic Latent Semantic Analysis) is a framework design
 
 ## Prerequisites
 - Python3 with urllib (`apt install python3`, `pip3 install urllib`)
-- Any C++ compiler (I use clang for MinGW64)
+- Any C++ compiler (I use g++ for MinGW64, you may need to modify the Makefile if you use a different compiler)
 - OpenCL (this part is complicated, you should lookup and download the SDK for your system)
 - If running on Windows, you must use [MinGW](https://www.mingw-w64.org/) as WSL does not currently support GPU peripherals.
 - If running the GPU implementation, you must run on a computer with a GPU.
