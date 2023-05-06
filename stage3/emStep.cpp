@@ -192,7 +192,7 @@ void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 // You should comment this out when compiling without a GPU
 // FIXME - Pass in a single pointer to use as a scratchpad
 void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, double backgroundLmProb,
-    double *P_zdw_B, double *P_zdw_j) {
+    double *P_zdw_B, double *P_zdw_j, double *doc_coverage_T, double *denoms_common) {
     
     cl_int err;
 
@@ -200,13 +200,7 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     // Topic-major, then document-major order
     double topicLmProb = 1 - backgroundLmProb;
 
-    // We don't allocate our scratchpad memory since malloc() is slow and we can reuse across iterations
-    // OR DO WE???
-    double *doc_coverage_T = new double[previous.num_topics * previous.num_documents];
-    double *denoms_common = new double[previous.num_documents * previous.vocab_size];
-
     // Transpose document coverage in preparation for sgemm
-    // FIXME - GPU-accelerated transpose
     for (int i = 0; i < previous.num_documents; i++) {
         for (int j = 0; j < previous.num_topics; j++) {
             doc_coverage_T[i * previous.num_topics + j] = previous.document_coverage[j * previous.num_documents + i];
@@ -217,7 +211,6 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     PRINT_ON_ERROR;
 
     // P(Z_d,w | B)
-    // FIXME - Precompute 1 - x to go faster
     for (size_t document = 0; document < previous.num_documents; document++) {
         for (size_t word = 0; word < previous.vocab_size; word++) {
             double P_zdw_B_num = backgroundLmProb * modelData.background_lm[word];
@@ -229,6 +222,7 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     }
 
     // P(Z_d,w | theta_j)
+    // FIXME - accelerate this
     for (size_t document = 0; document < previous.num_documents; document++) {
         for (size_t word = 0; word < previous.vocab_size; word++) {
 
@@ -244,7 +238,9 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     // M-step
     // Document coverage
-    for (size_t document = 0; document < previous.num_documents; document++) {
+    // FIXME - accelerate this
+    // The correct output gives coverage error of 132.969 and model error of 3.38041
+    /*for (size_t document = 0; document < previous.num_documents; document++) {
         double denom = 0;
 
         // Sum over all topics
@@ -265,20 +261,29 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
             current.document_coverage[topic * previous.num_documents + document] = num / denom;
         }
-    }
+    }*/
 
-    // Topic models
-    // Compile kernel
+    // Some overhead required - compile the GPU code and copy over necessary variables
+    cl_kernel documentUpdateKernel = gpu::compileKernelFromFile("kernels/mstep.cl", "computeDocumentUpdate", &err); PRINT_ON_ERROR;
     cl_kernel topicUpdateKernel = gpu::compileKernelFromFile("kernels/mstep.cl", "computeTopicUpdate", &err); PRINT_ON_ERROR;
     //cl_kernel reductionKernel = gpu::compileKernelFromFile("kernels/mstep.cl", "reduceSum", &err); PRINT_ON_ERROR;
-
+    
     // Copy all data to the GPU
     cl_mem document_counts_d = gpu::hostToDeviceCopy<cl_ulong>((cl_ulong*) modelData.document_counts, previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
     cl_mem P_zdw_B_d = gpu::hostToDeviceCopy<double>(P_zdw_B, previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
     cl_mem P_zdw_j_d = gpu::hostToDeviceCopy<double>(P_zdw_j, previous.num_topics * previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
     cl_mem topic_models_d = gpu::deviceOutputAllocate(sizeof(double) * previous.num_topics * previous.vocab_size, &err); PRINT_ON_ERROR;
-    
+    cl_mem document_coverage_d = gpu::deviceOutputAllocate(sizeof(double) * previous.num_topics * previous.num_documents, &err); PRINT_ON_ERROR;
+
     // Set arguments
+    err = clSetKernelArg(documentUpdateKernel, 0, sizeof(P_zdw_B_d), (void*) &P_zdw_B_d); PRINT_ON_ERROR;
+    err = clSetKernelArg(documentUpdateKernel, 1, sizeof(P_zdw_j_d), (void*) &P_zdw_j_d); PRINT_ON_ERROR;
+    err = clSetKernelArg(documentUpdateKernel, 2, sizeof(document_counts_d), (void*) &document_counts_d); PRINT_ON_ERROR;
+    err = clSetKernelArg(documentUpdateKernel, 3, sizeof(document_coverage_d), (void*) &document_coverage_d); PRINT_ON_ERROR;
+    err = clSetKernelArg(documentUpdateKernel, 4, sizeof(previous.num_documents), (void*) &previous.num_documents); PRINT_ON_ERROR;
+    err = clSetKernelArg(documentUpdateKernel, 5, sizeof(previous.vocab_size), (void*) &previous.vocab_size); PRINT_ON_ERROR;
+    err = clSetKernelArg(documentUpdateKernel, 6, sizeof(previous.num_topics), (void*) &previous.num_topics); PRINT_ON_ERROR;
+
     err = clSetKernelArg(topicUpdateKernel, 0, sizeof(P_zdw_B_d), (void*) &P_zdw_B_d); PRINT_ON_ERROR;
     err = clSetKernelArg(topicUpdateKernel, 1, sizeof(P_zdw_j_d), (void*) &P_zdw_j_d); PRINT_ON_ERROR;
     err = clSetKernelArg(topicUpdateKernel, 2, sizeof(document_counts_d), (void*) &document_counts_d); PRINT_ON_ERROR;
@@ -287,22 +292,39 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     err = clSetKernelArg(topicUpdateKernel, 5, sizeof(previous.vocab_size), (void*) &previous.vocab_size); PRINT_ON_ERROR;
     err = clSetKernelArg(topicUpdateKernel, 6, sizeof(previous.num_topics), (void*) &previous.num_topics); PRINT_ON_ERROR;
     
-    // Launch kernel
     size_t blockSize = 256;
 
-    utils::ListWithSize<size_t> gridDim = utils::ListWithSize<size_t>();
-    gridDim.num_items = 2;
-    gridDim.items = new size_t[2];
-    gridDim.items[0] = previous.num_topics;
-    gridDim.items[1] = ceil((previous.vocab_size * 1.0) / blockSize) * blockSize;
+    // Launch kernel - document counts
+    utils::ListWithSize<size_t> gridDimDocument = utils::ListWithSize<size_t>();
+    gridDimDocument.num_items = 2;
+    gridDimDocument.items = new size_t[2];
+    gridDimDocument.items[0] = previous.num_topics;
+    gridDimDocument.items[1] = ceil((previous.num_documents * 1.0) / blockSize) * blockSize;
 
-    utils::ListWithSize<size_t> blockDim = utils::ListWithSize<size_t>();
-    blockDim.num_items = 2;
-    blockDim.items = new size_t[2];
-    blockDim.items[0] = 1;
-    blockDim.items[1] = blockSize;
+    utils::ListWithSize<size_t> blockDimDocument = utils::ListWithSize<size_t>();
+    blockDimDocument.num_items = 2;
+    blockDimDocument.items = new size_t[2];
+    blockDimDocument.items[0] = 1;
+    blockDimDocument.items[1] = blockSize;
 
-    gpu::launchKernel(topicUpdateKernel, gridDim, blockDim);
+    // FIXME - this gives incorrect output of all 0s
+    gpu::launchKernel(documentUpdateKernel, gridDimDocument, blockDimDocument);
+
+    err = gpu::copyDeviceToHost<double>(document_coverage_d, current.document_coverage, previous.num_topics * previous.num_documents); PRINT_ON_ERROR;
+
+    utils::ListWithSize<size_t> gridDimTopic = utils::ListWithSize<size_t>();
+    gridDimTopic.num_items = 2;
+    gridDimTopic.items = new size_t[2];
+    gridDimTopic.items[0] = previous.num_topics;
+    gridDimTopic.items[1] = ceil((previous.vocab_size * 1.0) / blockSize) * blockSize;
+
+    utils::ListWithSize<size_t> blockDimTopic = utils::ListWithSize<size_t>();
+    blockDimTopic.num_items = 2;
+    blockDimTopic.items = new size_t[2];
+    blockDimTopic.items[0] = 1;
+    blockDimTopic.items[1] = blockSize;
+
+    gpu::launchKernel(topicUpdateKernel, gridDimTopic, blockDimTopic);
 
     err = gpu::copyDeviceToHost<double>(topic_models_d, current.topic_models, previous.num_topics * previous.vocab_size); PRINT_ON_ERROR;
 
@@ -310,8 +332,22 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     clReleaseMemObject(P_zdw_B_d);
     clReleaseMemObject(P_zdw_j_d);
     clReleaseMemObject(document_counts_d);
+    clReleaseMemObject(topic_models_d);
 
+    // Normalize the outputs
     // FIXME - Perform this step on the GPU instead
+    for (size_t document = 0; document < previous.num_documents; document++) {
+        double denom = 0;
+
+        for (size_t topic = 0; topic < previous.num_topics; topic++) {
+            denom += current.document_coverage[topic * previous.num_documents + document];
+        }
+
+        for (size_t topic = 0; topic < previous.num_topics; topic++) {
+            current.document_coverage[topic * previous.num_documents + document] /= denom;
+        }
+    }
+
     for (size_t i = 0; i < previous.num_topics; i++) {
         double denom = 0;
 
@@ -323,11 +359,6 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
             current.topic_models[i * previous.vocab_size + j] /= denom;
         }
     }
-
-    cerr << "Comp Done!" << endl;
-
-    delete[] doc_coverage_T;
-    delete[] denoms_common;
 }
 
 bool isConverged(const EMstep &first, const EMstep &second) {
@@ -341,17 +372,12 @@ bool isConverged(const EMstep &first, const EMstep &second) {
         error_norm_coverage += abs(first.document_coverage[i] - second.document_coverage[i]);
     }
 
-    size_t nnz=0;
-
     for (size_t i = 0; i < first.num_topics * first.vocab_size; i++) {
         error_norm_model += abs(first.topic_models[i] - second.topic_models[i]);
-        if (second.topic_models[i] != 0) nnz++;
     }
 
     cout << "Model error: " << error_norm_model << endl;
     cout << "Coverage error: " << error_norm_coverage << endl;
-    cout << "Num nonzeros: " << nnz << endl;
-    cout << "o " << second.topic_models[0] << " " << second.topic_models[1] << endl;
     cout << endl;
 
     // FIXME - Tweak these values

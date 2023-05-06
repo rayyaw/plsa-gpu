@@ -104,15 +104,17 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
 
     double *P_zdw_B = new double[model.document_count * model.vocab_size];
     double *P_zdw_j = new double[model.document_count * model.vocab_size * num_topics];
+    double *doc_coverage_T = new double[first.num_topics * first.num_documents];
+    double *denoms_common = new double[first.num_documents * first.vocab_size];
 
     for (size_t i = 0; i < MAXITER; i++) {
         // This takes 42s per iteration, assuming 500 books (on the CPU)
         // On the GPU this takes 34s per iteration, assuming 400 books
         time_t start_t = time(NULL);
         if (update_first) {
-            gpuUpdate(first, second, model, prob_of_bg, P_zdw_B, P_zdw_j);
+            gpuUpdate(first, second, model, prob_of_bg, P_zdw_B, P_zdw_j, doc_coverage_T, denoms_common);
         } else {
-            gpuUpdate(second, first, model, prob_of_bg, P_zdw_B, P_zdw_j);
+            gpuUpdate(second, first, model, prob_of_bg, P_zdw_B, P_zdw_j, doc_coverage_T, denoms_common);
         }
         time_t end_t = time(NULL);
 
@@ -132,6 +134,8 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
 
     delete[] P_zdw_B;
     delete[] P_zdw_j;
+    delete[] doc_coverage_T;
+    delete[] denoms_common;
 
     gpu::destroyGpuData();
 
