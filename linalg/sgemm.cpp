@@ -13,7 +13,7 @@ cl_int linalg::sgemm(double *A, double *B, double *C, unsigned int M, unsigned i
     // Compile the sgemm kernel
     const char *sgemm_name = "sgemm";
 
-    cl_int err;
+    cl_int err = CL_SUCCESS;
 
     if (!gpu::kernelExists(sgemm_name)) {
         const char *kernel_string = io::readKernel("kernels/sgemm.cl");

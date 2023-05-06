@@ -44,6 +44,10 @@ namespace gpu {
 
     GpuProps getDeviceProps(cl_device_id device);
 
+    // Saves the hassle of creating these manually
+    utils::ListWithSize<size_t> makeDim2(size_t fst, size_t snd);
+    utils::ListWithSize<size_t> makeDim3(size_t fst, size_t snd, size_t trd);
+
     /**
      * @brief Create the GPU kernel by compiling the given code. Must be destroyed manually. May be used multiple times.
      * You should not call this function, instead you should use compileKernelIfNotExists().
@@ -117,6 +121,15 @@ namespace gpu {
      * @return cl_mem The device global memory that was allocated. It is your responsibility to release it.
      */
     cl_mem deviceOutputAllocate(size_t nbytes, cl_int *err);
+
+    /**
+     * @brief Create a device memory array that is read-write (for intermediate values)
+     * 
+     * @param nbytes The number of bytes to use
+     * @param err Modified on failure. If this is not equal to CL_SUCCESS, an error has occurred.
+     * @return cl_mem The device global memory that was allocated. It is your responsibility to release it.
+     */
+    cl_mem deviceIntermediateAllocate(size_t nbytes, cl_int *err);
 
     /**
      * @brief Copy device memory back to the host. Blocking call.

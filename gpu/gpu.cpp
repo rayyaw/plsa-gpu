@@ -151,6 +151,27 @@ GpuProps gpu::getDeviceProps(cl_device_id device) {
     return output;
 }
 
+utils::ListWithSize<size_t> gpu::makeDim2(size_t fst, size_t snd) {
+    utils::ListWithSize<size_t> lst = utils::ListWithSize<size_t>();
+    lst.num_items = 2;
+    lst.items = new size_t[2];
+    lst.items[0] = fst;
+    lst.items[1] = snd;
+
+    return lst;
+}
+
+utils::ListWithSize<size_t> gpu::makeDim3(size_t fst, size_t snd, size_t trd) {
+    utils::ListWithSize<size_t> lst = utils::ListWithSize<size_t>();
+    lst.num_items = 3;
+    lst.items = new size_t[3];
+    lst.items[0] = fst;
+    lst.items[1] = snd;
+    lst.items[2] = trd;
+
+    return lst;
+}
+
 cl_kernel gpu::compileKernel(const char *kernelCode, const char *kernelFunctionName, cl_int *err) {
     SET_ERROR_IF_NULL;
 
@@ -187,7 +208,7 @@ cl_kernel gpu::compileKernelFromFile(const char *filename, const char *kernelNam
     if (!kernelExists(kernelName)) {
         const char *kernel_string = io::readKernel(filename);
         compileKernelIfNotExists(kernel_string, kernelName, err);
-    } 
+    }
 
     return (*available_kernels)[kernelName];
 }
@@ -195,6 +216,11 @@ cl_kernel gpu::compileKernelFromFile(const char *filename, const char *kernelNam
 cl_mem gpu::deviceOutputAllocate(size_t nbytes, cl_int *err) {
     SET_ERROR_IF_NULL;
     return clCreateBuffer(*context, CL_MEM_WRITE_ONLY, nbytes, NULL, err);
+}
+
+cl_mem gpu::deviceIntermediateAllocate(size_t nbytes, cl_int *err) {
+    SET_ERROR_IF_NULL;
+    return clCreateBuffer(*context, CL_MEM_READ_WRITE, nbytes, NULL, err);
 }
 
 cl_int gpu::launchKernel(cl_kernel kernel, utils::ListWithSize<size_t> gridDim, utils::ListWithSize<size_t> blockDim) {

@@ -10,9 +10,7 @@ __kernel void computeTopicUpdate(
 
     const ulong topic = get_global_id(0);
     const ulong word = get_global_id(1);
-    if (topic >= num_topics || word >= vocab_size) {
-        return;
-    }
+    if (topic >= num_topics || word >= vocab_size) return;
 
     double num = 0.0;
     for (ulong document = 0; document < num_documents; document++) {
@@ -36,9 +34,7 @@ __kernel void computeDocumentUpdate(
     const ulong topic = get_global_id(0);
     const ulong document = get_global_id(1);
 
-    if (document >= num_documents || topic >= num_topics) {
-        return;
-    }
+    if (document >= num_documents || topic >= num_topics) return;
 
     // For each topic/word pair
     double num = 0;
