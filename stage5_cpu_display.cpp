@@ -69,7 +69,7 @@ vector<pair<double, size_t>> getMostCoveredTopics(size_t document_number, int nu
 
         for (size_t j = 0; j < total_topics; j++) {
             // Handle the edge case of being the first element
-            if (document_coverage[i*num_documents + document_number] > current && 
+            if (document_coverage[j*num_documents + document_number] > current && 
                (i == 0 || document_coverage[j*num_documents + document_number] < most_covered_topics[i-1].first)) {
                 current = document_coverage[j*num_documents + document_number];
                 current_idx = j;
