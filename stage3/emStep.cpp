@@ -13,7 +13,6 @@
 #include <cstdlib>
 #include <iostream>
 
-#define SMOOTHING_FACTOR 0.99
 #define PRINT_ON_ERROR if (err != CL_SUCCESS) { cerr << "CL ERROR: " << err << endl; exit(1);}
 
 // Local ussing
@@ -190,14 +189,14 @@ void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
 // You should comment this out when compiling without a GPU
 // FIXME - Do all normalizations on the GPU
-// FIXME - Pass in cl_mem's to go even faster and avoid HtoD and DtoH copies
+// FIXME - All computations on the GPU to avoid HtoD and DtoH copies
 // FIXME - memleak when using ListWithSize for grid and block dims (this is small, so only a minor issue)
 
 // Correct values
 // Model Error: 3.38041
 // Coverage Error: 132.969
 void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, double backgroundLmProb,
-    double *scratchpad) {
+    double *scratchpad, cl_mem &P_zdw_B_d, cl_mem &P_zdw_j_d, cl_mem &denoms_common_d) {
 
     // Scratchpad offsets
     double *denoms_common = scratchpad;
@@ -220,11 +219,6 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     cl_mem prev_document_coverage_d = gpu::hostToDeviceCopy<double>(previous.document_coverage, previous.num_topics * previous.num_documents, &err); PRINT_ON_ERROR;
     cl_mem prev_topic_models_d = gpu::hostToDeviceCopy<double>(previous.topic_models, previous.num_topics * previous.vocab_size, &err); PRINT_ON_ERROR;
-
-    cl_mem P_zdw_j_d = gpu::deviceIntermediateAllocate(sizeof(double) * previous.num_documents * previous.num_topics * previous.vocab_size, &err); PRINT_ON_ERROR;
-    cl_mem P_zdw_B_d = gpu::deviceIntermediateAllocate(sizeof(double) * previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
-
-    cl_mem denoms_common_d = gpu::deviceIntermediateAllocate(sizeof(double) * previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
 
     // E-step
 
@@ -302,8 +296,6 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     // Cleanup
     clReleaseMemObject(topic_models_d); PRINT_ON_ERROR;
-    clReleaseMemObject(P_zdw_B_d); PRINT_ON_ERROR;
-    clReleaseMemObject(P_zdw_j_d); PRINT_ON_ERROR;
     clReleaseMemObject(document_counts_d); PRINT_ON_ERROR;
     clReleaseMemObject(prev_document_coverage_d); PRINT_ON_ERROR;
     clReleaseMemObject(prev_topic_models_d); PRINT_ON_ERROR;

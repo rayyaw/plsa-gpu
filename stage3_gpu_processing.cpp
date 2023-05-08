@@ -10,6 +10,7 @@
  */
 
 // C headers
+#include <CL/cl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -28,6 +29,7 @@ using std::cout;
 using std::endl;
 
 #define MAXITER 2
+#define PRINT_ON_ERROR if (err != CL_SUCCESS) { cerr << "CL ERROR: " << err << endl; exit(1);}
 
 ModelData loadModelFromFile() {
     // Load the counts and background LM from file.
@@ -112,22 +114,34 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     // Double buffering!
     EMstep first = EMstep(num_topics, model.document_count, model.vocab_size);
     EMstep second = EMstep(num_topics, model.document_count, model.vocab_size);
+
+    EMstep to_return = EMstep(num_topics, model.document_count, model.vocab_size);
     
     first.genrandom();
+
+    // Required to run sgemm
     transposeDocumentCoverage(first);
 
     bool update_first = false;
 
     double *scratchpad = new double[first.num_documents * first.vocab_size];
+    
+    // Setup GPU scratchpad memory
+    cl_int err = CL_SUCCESS;
+    cl_mem P_zdw_j_d = gpu::deviceIntermediateAllocate(sizeof(double) * first.num_documents * first.num_topics * first.vocab_size, &err); PRINT_ON_ERROR;
+    cl_mem P_zdw_B_d = gpu::deviceIntermediateAllocate(sizeof(double) * first.num_documents * first.vocab_size, &err); PRINT_ON_ERROR;
+
+    cl_mem denoms_common_d = gpu::deviceIntermediateAllocate(sizeof(double) * first.num_documents * first.vocab_size, &err); PRINT_ON_ERROR;
+
 
     for (size_t i = 0; i < MAXITER; i++) {
         // This takes 42s per iteration, assuming 500 books (on the CPU)
         // On the GPU this takes 34s per iteration, assuming 400 books
         time_t start_t = time(NULL);
         if (update_first) {
-            gpuUpdate(first, second, model, prob_of_bg, scratchpad);
+            gpuUpdate(first, second, model, prob_of_bg, scratchpad, P_zdw_B_d, P_zdw_j_d, denoms_common_d);
         } else {
-            gpuUpdate(second, first, model, prob_of_bg, scratchpad);
+            gpuUpdate(second, first, model, prob_of_bg, scratchpad, P_zdw_B_d, P_zdw_j_d, denoms_common_d);
         }
         time_t end_t = time(NULL);
 
@@ -137,10 +151,12 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
         if (isConverged(first, second)) {
             if (update_first) {
                 transposeDocumentCoverage(first);
-                return first;
+                to_return = first;
+                break;
             } else {
                 transposeDocumentCoverage(second);
-                return second;
+                to_return = second;
+                break;
             }
         }
 
@@ -148,11 +164,14 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     }
 
     delete[] scratchpad;
+    clReleaseMemObject(denoms_common_d);
+    clReleaseMemObject(P_zdw_B_d);
+    clReleaseMemObject(P_zdw_j_d);
 
     gpu::destroyGpuData();
 
     cout << "Completed EM phase. Saving results to file..." << endl;
-    return first;
+    return to_return;
 }
 
 int main(int argc, char *argv[]) {

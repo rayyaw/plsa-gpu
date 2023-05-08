@@ -1,6 +1,7 @@
 #pragma once
 
 // C headers
+#include <CL/cl.h>
 #include <stddef.h>
 
 // Local headers
@@ -48,7 +49,8 @@ class EMstep {
 void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &ModelData, double backgroundLmProb,
     double *P_zdw_B, double *P_zdw_j);
 
-void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &ModelData, double backgroundLmProb, double *scratchpad);
+void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &ModelData, double backgroundLmProb, 
+    double *scratchpad, cl_mem &P_zdw_B_d, cl_mem &P_zdw_j_d, cl_mem &denoms_common_d);
 
 /**
  * @brief Check if the EM algorithm has converged. The order of parameters does not matter.
