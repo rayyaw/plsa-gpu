@@ -17,13 +17,13 @@ em_step: model_data stage3/emStep.h stage3/emStep.cpp
 	g++ -c stage3/emStep.cpp -o build/em_step.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
 
 stage3_cpu_cpp: stage3_cpu_processing.cpp
-	g++ -c stage3_cpu_processing.cpp -O3 -o build/stage3_cpu_cpp.o
+	g++ -c stage3_cpu_processing.cpp -O3 -o build/stage3_cpu_cpp.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
 
 stage4_cpu_cpp: stage4_cpu_postprocessing.cpp
-	g++ -c build stage4_cpu_postprocessing.cpp -o build/stage4_cpu_cpp.o
+	g++ -c build stage4_cpu_postprocessing.cpp -o build/stage4_cpu_cpp.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
 
-stage4_cpu: stage4_cpu_cpp em_step
-	g++ build/stage4_cpu_cpp.o build/em_step.o build/model_data.o -o bin/stage4_cpu
+stage4_cpu: stage4_cpu_cpp em_step gpu io linalg
+	g++ build/io.o build/linalg.o build/gpu.o build/stage4_cpu_cpp.o build/em_step.o build/model_data.o -o bin/stage4_cpu -I 'C:/Program Files (x86)/OCL_SDK_Light/include/' -L 'C:/Program Files (x86)/OCL_SDK_Light/lib/x86_64/' -lOpenCL
 
 stage5_cpu: stage5_cpu_display.cpp
 	g++ stage5_cpu_display.cpp -o bin/stage5_cpu

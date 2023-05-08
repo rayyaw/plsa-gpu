@@ -188,11 +188,6 @@ void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     }
 }
 
-// You should comment this out when compiling without a GPU
-// FIXME - Do all normalizations on the GPU
-// FIXME - All computations on the GPU to avoid HtoD and DtoH copies
-// FIXME - memleak when using ListWithSize for grid and block dims (this is small, so only a minor issue)
-
 // Correct values
 // Model Error: 3.38041
 // Coverage Error: 132.969
@@ -292,12 +287,12 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     err = gpu::copyDeviceToHost<double>(topic_models_d, current.topic_models, previous.num_topics * previous.vocab_size); PRINT_ON_ERROR;
 
     // Cleanup
+    clReleaseMemObject(document_coverage_d); PRINT_ON_ERROR;
     clReleaseMemObject(topic_models_d); PRINT_ON_ERROR;
     clReleaseMemObject(prev_document_coverage_d); PRINT_ON_ERROR;
     clReleaseMemObject(prev_topic_models_d); PRINT_ON_ERROR;
 
     // Normalize the outputs
-    // FIXME - Perform this step on the GPU instead
     for (size_t document = 0; document < previous.num_documents; document++) {
         double denom = 0;
 

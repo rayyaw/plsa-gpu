@@ -119,8 +119,6 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     // Double buffering!
     EMstep first = EMstep(num_topics, model.document_count, model.vocab_size);
     EMstep second = EMstep(num_topics, model.document_count, model.vocab_size);
-
-    EMstep to_return = EMstep(num_topics, model.document_count, model.vocab_size);
     
     first.genrandom();
 
@@ -156,11 +154,9 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
         if (isConverged(first, second)) {
             if (update_first) {
                 transposeDocumentCoverage(first);
-                to_return = first;
                 break;
             } else {
                 transposeDocumentCoverage(second);
-                to_return = second;
                 break;
             }
         }
@@ -174,7 +170,12 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     clReleaseMemObject(P_zdw_j_d);
 
     cout << "Completed EM phase. Saving results to file..." << endl;
-    return to_return;
+
+    if (update_first) {
+        return second;
+    } else {
+        return first;
+    }
 }
 
 int main(int argc, char *argv[]) {
