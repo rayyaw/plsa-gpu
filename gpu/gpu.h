@@ -45,6 +45,7 @@ namespace gpu {
     GpuProps getDeviceProps(cl_device_id device);
 
     // Saves the hassle of creating these manually
+    // Create a ListWithSize of dimension 2 or 3 to store the grid or block dimensions
     utils::ListWithSize<size_t> makeDim2(size_t fst, size_t snd);
     utils::ListWithSize<size_t> makeDim3(size_t fst, size_t snd, size_t trd);
 

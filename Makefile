@@ -19,8 +19,7 @@ em_step: model_data stage3/emStep.h stage3/emStep.cpp
 stage3_cpu_cpp: stage3_cpu_processing.cpp
 	g++ -c stage3_cpu_processing.cpp -O3 -o build/stage3_cpu_cpp.o
 
-stage3_cpu: stage3_cpu_cpp model_data em_step
-	g++ build/stage3_cpu_cpp.o build/model_data.o build/em_step.o -O3 -o bin/stage3_cpu
+
 
 stage4_cpu_cpp: stage4_cpu_postprocessing.cpp
 	g++ -c build stage4_cpu_postprocessing.cpp -o build/stage4_cpu_cpp.o
@@ -41,6 +40,9 @@ io: io/io.cpp
 
 linalg: linalg/sgemm.cpp
 	g++ -c linalg/sgemm.cpp -o build/linalg.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
+
+stage3_cpu: stage3_cpu_cpp model_data em_step gpu io linalg
+	g++ build/stage3_cpu_cpp.o build/model_data.o build/em_step.o build/io.o build/linalg.o build/gpu.o -O3 -o bin/stage3_cpu -I 'C:/Program Files (x86)/OCL_SDK_Light/include/' -L 'C:/Program Files (x86)/OCL_SDK_Light/lib/x86_64/' -lOpenCL
 
 stage3_gpu_cpp: stage3_gpu_processing.cpp
 	g++ -c stage3_gpu_processing.cpp -O3 -o build/stage3_gpu_cpp.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
