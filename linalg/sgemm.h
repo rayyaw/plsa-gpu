@@ -17,6 +17,8 @@ namespace linalg {
      * 
      * @return An error code, or CL_SUCCESS if no error occurred
      */
-
     cl_int sgemm(double *A, double *B, double *C, unsigned int M, unsigned int N, unsigned int K);
+
+    // Same as normal sgemm, but i/o are on device memory
+    cl_int sgemmDevice(cl_mem A, cl_mem B, cl_mem C, unsigned int M, unsigned int N, unsigned int K);
 }

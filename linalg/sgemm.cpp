@@ -76,3 +76,46 @@ cl_int linalg::sgemm(double *A, double *B, double *C, unsigned int M, unsigned i
 
     return err;
 }
+
+cl_int linalg::sgemmDevice(cl_mem A, cl_mem B, cl_mem C, unsigned int M, unsigned int N, unsigned int K) {
+
+    // Compile the sgemm kernel
+    const char *sgemm_name = "sgemm";
+
+    cl_int err = CL_SUCCESS;
+
+    if (!gpu::kernelExists(sgemm_name)) {
+        const char *kernel_string = io::readKernel("kernels/sgemm.cl");
+        gpu::compileKernelIfNotExists(kernel_string, sgemm_name, &err); RETURN_ON_ERROR;
+    } 
+
+    cl_kernel sgemm_kernel = (*available_kernels)[sgemm_name];
+
+    // the max in OpenCL is 256
+    size_t blockSize = 16;
+
+    utils::ListWithSize<size_t> gridDim = utils::ListWithSize<size_t>();
+    gridDim.num_items = 2;
+    gridDim.items = new size_t[2];
+    gridDim.items[0] = ceil((M * 1.0) / blockSize) * blockSize;
+    gridDim.items[1] = ceil((N * 1.0) / blockSize) * blockSize;
+
+    utils::ListWithSize<size_t> blockDim = utils::ListWithSize<size_t>();
+    blockDim.num_items = 2;
+    blockDim.items = new size_t[2];
+    blockDim.items[0] = blockSize;
+    blockDim.items[1] = blockSize;
+
+    // Set kernel arguments
+    err = clSetKernelArg(sgemm_kernel, 0, sizeof(A), (void*) &A); RETURN_ON_ERROR;
+    err = clSetKernelArg(sgemm_kernel, 1, sizeof(B), (void*) &B); RETURN_ON_ERROR;
+    err = clSetKernelArg(sgemm_kernel, 2, sizeof(C), (void*) &C); RETURN_ON_ERROR;
+    err = clSetKernelArg(sgemm_kernel, 3, sizeof(M), (void*) &M); RETURN_ON_ERROR;
+    err = clSetKernelArg(sgemm_kernel, 4, sizeof(N), (void*) &N); RETURN_ON_ERROR;
+    err = clSetKernelArg(sgemm_kernel, 5, sizeof(K), (void*) &K); RETURN_ON_ERROR;
+
+    // Launch the kernel
+    err = gpu::launchKernel(sgemm_kernel, gridDim, blockDim); RETURN_ON_ERROR;
+
+    return err;
+}

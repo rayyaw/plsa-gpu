@@ -1,7 +1,3 @@
-// FIXME - This gives the wrong value
-// Correct values
-// Model Error: 3.38041
-// Coverage Error: 132.969
 __kernel void computeBackgroundPrior(
     __global const double *background_lm,
     __global const double *denoms_common,

@@ -103,7 +103,6 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     bool update_first = false;
 
     double *scratchpad = new double[
-        (model.document_count * model.vocab_size) + 
         (model.document_count * model.vocab_size * num_topics) +
         (first.num_topics * first.num_documents) +
         (first.num_documents * first.vocab_size)
