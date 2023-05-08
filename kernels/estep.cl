@@ -43,7 +43,7 @@ __kernel void computeTopicPrior(
 
     if (topic >= num_topics || document >= num_documents || word >= vocab_size) return;
 
-    double P_zdw_j_num = document_coverage[topic * num_documents + document] * topic_models[topic * vocab_size + word];
+    double P_zdw_j_num = document_coverage[document * num_topics + topic] * topic_models[topic * vocab_size + word];
     double P_zdw_j_denom = denoms_common[document * vocab_size + word] + (backgroundLmProb * background_lm[word]);
 
     P_zdw_j[((topic * num_documents) + document) * vocab_size + word] = P_zdw_j_num / P_zdw_j_denom;

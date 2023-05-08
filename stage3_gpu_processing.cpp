@@ -90,6 +90,21 @@ void saveEmToFile(const EMstep &data) {
     cout << "Saved models to files. Stage 3 completed." << endl;
 }
 
+// Transpose the document coverage matrix.
+// This allows us to run matrix multiplication
+void transposeDocumentCoverage(EMstep &model) {
+    double *doc_coverage_T = new double[model.num_topics * model.num_documents];
+
+    for (int i = 0; i < model.num_documents; i++) {
+        for (int j = 0; j < model.num_topics; j++) {
+            doc_coverage_T[i * model.num_topics + j] = model.document_coverage[j * model.num_documents + i];
+        }
+    }
+
+    delete[] model.document_coverage;
+    model.document_coverage = doc_coverage_T;
+}
+
 
 EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     gpu::initializeGpuData(1);
@@ -99,14 +114,11 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     EMstep second = EMstep(num_topics, model.document_count, model.vocab_size);
     
     first.genrandom();
+    transposeDocumentCoverage(first);
 
     bool update_first = false;
 
-    double *scratchpad = new double[
-        (model.document_count * model.vocab_size * num_topics) +
-        (first.num_topics * first.num_documents) +
-        (first.num_documents * first.vocab_size)
-    ];
+    double *scratchpad = new double[first.num_documents * first.vocab_size];
 
     for (size_t i = 0; i < MAXITER; i++) {
         // This takes 42s per iteration, assuming 500 books (on the CPU)
@@ -124,8 +136,10 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
 
         if (isConverged(first, second)) {
             if (update_first) {
+                transposeDocumentCoverage(first);
                 return first;
             } else {
+                transposeDocumentCoverage(second);
                 return second;
             }
         }

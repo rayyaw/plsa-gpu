@@ -44,5 +44,5 @@ __kernel void computeDocumentUpdate(
         num += smooth_ct * (1 - P_zdw_B[idx]) * P_zdw_j[(topic * num_documents + document) * vocab_size + word];
     }
 
-    document_coverage[topic * num_documents + document] = num;
+    document_coverage[document * num_topics + topic] = num;
 }

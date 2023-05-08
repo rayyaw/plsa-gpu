@@ -189,10 +189,9 @@ void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 }
 
 // You should comment this out when compiling without a GPU
-// FIXME - Pass in transposed document coverage, and only correct when saving output
 // FIXME - Do all normalizations on the GPU
 // FIXME - Pass in cl_mem's to go even faster and avoid HtoD and DtoH copies
-// FIXME - memleak when using ListWithSize for grid and block dims
+// FIXME - memleak when using ListWithSize for grid and block dims (this is small, so only a minor issue)
 
 // Correct values
 // Model Error: 3.38041
@@ -201,9 +200,7 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     double *scratchpad) {
 
     // Scratchpad offsets
-    double *P_zdw_j = scratchpad;
-    double *doc_coverage_T = P_zdw_j + (previous.num_documents * previous.vocab_size * previous.num_topics);
-    double *denoms_common = doc_coverage_T + (previous.num_topics * previous.num_documents);
+    double *denoms_common = scratchpad;
     
     // Overhead - GPU setup
     cl_int err = CL_SUCCESS;
@@ -228,18 +225,11 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     cl_mem P_zdw_B_d = gpu::deviceIntermediateAllocate(sizeof(double) * previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
 
     // E-step
-    // Topic-major, then document-major order
 
-    // Transpose document coverage in preparation for sgemm
-    for (int i = 0; i < previous.num_documents; i++) {
-        for (int j = 0; j < previous.num_topics; j++) {
-            doc_coverage_T[i * previous.num_topics + j] = previous.document_coverage[j * previous.num_documents + i];
-        }
-    }
+    // Document coverage is passed in as transposed
+    cl_mem doc_coverage_T_d = gpu::hostToDeviceCopy<double>(previous.document_coverage, previous.num_topics * previous.num_documents, &err); PRINT_ON_ERROR;
 
-    cl_mem doc_coverage_T_d = gpu::hostToDeviceCopy<double>(doc_coverage_T, previous.num_topics * previous.num_documents, &err); PRINT_ON_ERROR;
-
-    err = linalg::sgemm(doc_coverage_T, previous.topic_models, denoms_common, previous.num_documents, previous.vocab_size, previous.num_topics); PRINT_ON_ERROR;
+    err = linalg::sgemm(previous.document_coverage, previous.topic_models, denoms_common, previous.num_documents, previous.vocab_size, previous.num_topics); PRINT_ON_ERROR;
     PRINT_ON_ERROR;
 
     cl_mem denoms_common_d = gpu::hostToDeviceCopy<double>(denoms_common, previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
@@ -328,11 +318,11 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
         double denom = 0;
 
         for (size_t topic = 0; topic < previous.num_topics; topic++) {
-            denom += current.document_coverage[topic * previous.num_documents + document];
+            denom += current.document_coverage[document * previous.num_topics + topic];
         }
 
         for (size_t topic = 0; topic < previous.num_topics; topic++) {
-            current.document_coverage[topic * previous.num_documents + document] /= denom;
+            current.document_coverage[document * previous.num_topics + topic] /= denom;
         }
     }
 
