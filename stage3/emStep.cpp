@@ -224,15 +224,12 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     cl_mem P_zdw_j_d = gpu::deviceIntermediateAllocate(sizeof(double) * previous.num_documents * previous.num_topics * previous.vocab_size, &err); PRINT_ON_ERROR;
     cl_mem P_zdw_B_d = gpu::deviceIntermediateAllocate(sizeof(double) * previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
 
+    cl_mem denoms_common_d = gpu::deviceIntermediateAllocate(sizeof(double) * previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
+
     // E-step
 
     // Document coverage is passed in as transposed
-    cl_mem doc_coverage_T_d = gpu::hostToDeviceCopy<double>(previous.document_coverage, previous.num_topics * previous.num_documents, &err); PRINT_ON_ERROR;
-
-    err = linalg::sgemm(previous.document_coverage, previous.topic_models, denoms_common, previous.num_documents, previous.vocab_size, previous.num_topics); PRINT_ON_ERROR;
-    PRINT_ON_ERROR;
-
-    cl_mem denoms_common_d = gpu::hostToDeviceCopy<double>(denoms_common, previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
+    err = linalg::sgemmDevice(prev_document_coverage_d, prev_topic_models_d, denoms_common_d, previous.num_documents, previous.vocab_size, previous.num_topics); PRINT_ON_ERROR;
 
     // P(Z_d,w | B)
     err = clSetKernelArg(backgroundPriorKernel, 0, sizeof(background_lm_d), (void*) &background_lm_d); PRINT_ON_ERROR;
