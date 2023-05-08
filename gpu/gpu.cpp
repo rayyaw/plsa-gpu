@@ -152,15 +152,6 @@ GpuProps gpu::getDeviceProps(cl_device_id device) {
     return output;
 }
 
-ListWithSize<size_t> gpu::makeDim1(size_t fst) {
-    ListWithSize<size_t> lst = ListWithSize<size_t>();
-    lst.num_items = 1;
-    lst.items = new size_t[1];
-    lst.items[0] = fst;
-
-    return lst;
-}
-
 ListWithSize<size_t> gpu::makeDim2(size_t fst, size_t snd) {
     ListWithSize<size_t> lst = ListWithSize<size_t>();
     lst.num_items = 2;
