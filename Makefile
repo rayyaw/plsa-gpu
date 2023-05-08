@@ -11,15 +11,13 @@ stage2_cpu: stage2_cpu_preprocessing.cpp
 	g++ stage2_cpu_preprocessing.cpp -O3 -o bin/stage2_cpu
 
 model_data: stage3/modelData.cpp stage3/modelData.h
-	g++ -c stage3/modelData.cpp -o build/model_data.o
+	g++ -c stage3/modelData.cpp -o build/model_data.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
 
 em_step: model_data stage3/emStep.h stage3/emStep.cpp
 	g++ -c stage3/emStep.cpp -o build/em_step.o -I 'C:/Program Files (x86)/OCL_SDK_Light/include/'
 
 stage3_cpu_cpp: stage3_cpu_processing.cpp
 	g++ -c stage3_cpu_processing.cpp -O3 -o build/stage3_cpu_cpp.o
-
-
 
 stage4_cpu_cpp: stage4_cpu_postprocessing.cpp
 	g++ -c build stage4_cpu_postprocessing.cpp -o build/stage4_cpu_cpp.o

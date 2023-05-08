@@ -26,6 +26,7 @@ using std::endl;
 using std::rand;
 using std::srand;
 
+
 EMstep::EMstep(size_t num_topics, size_t num_documents, size_t vocab_size) {
     this -> num_topics = num_topics;
     this -> num_documents = num_documents;
@@ -206,7 +207,7 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     size_t blockSize = 256;
     
     // Initialize kernels
-    // These are lazy-loaded (if already loaded, just reuse) so not much overhead to do in every iteration
+    // These are lazy-loaded (if already loaded, just reuse) so not much overhead to call in every iteration
     cl_kernel backgroundPriorKernel = gpu::compileKernelFromFile("kernels/estep.cl", "computeBackgroundPrior", &err); PRINT_ON_ERROR;
     cl_kernel topicPriorKernel = gpu::compileKernelFromFile("kernels/estep.cl", "computeTopicPrior", &err); PRINT_ON_ERROR;
 
@@ -214,9 +215,6 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     cl_kernel topicUpdateKernel = gpu::compileKernelFromFile("kernels/mstep.cl", "computeTopicUpdate", &err); PRINT_ON_ERROR;
 
     // Copy data to the GPU
-    cl_mem document_counts_d = gpu::hostToDeviceCopy<cl_ulong>((cl_ulong*) modelData.document_counts, previous.num_documents * previous.vocab_size, &err); PRINT_ON_ERROR;
-    cl_mem background_lm_d = gpu::hostToDeviceCopy<double>(modelData.background_lm, previous.vocab_size, &err); PRINT_ON_ERROR;
-
     cl_mem prev_document_coverage_d = gpu::hostToDeviceCopy<double>(previous.document_coverage, previous.num_topics * previous.num_documents, &err); PRINT_ON_ERROR;
     cl_mem prev_topic_models_d = gpu::hostToDeviceCopy<double>(previous.topic_models, previous.num_topics * previous.vocab_size, &err); PRINT_ON_ERROR;
 
@@ -224,9 +222,9 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     // Document coverage is passed in as transposed
     err = linalg::sgemmDevice(prev_document_coverage_d, prev_topic_models_d, denoms_common_d, previous.num_documents, previous.vocab_size, previous.num_topics); PRINT_ON_ERROR;
-
-    // P(Z_d,w | B)
-    err = clSetKernelArg(backgroundPriorKernel, 0, sizeof(background_lm_d), (void*) &background_lm_d); PRINT_ON_ERROR;
+    
+    // P(Z_d,w | B) 
+    err = clSetKernelArg(backgroundPriorKernel, 0, sizeof(modelData.background_lm_d), (void*) &modelData.background_lm_d); PRINT_ON_ERROR;
     err = clSetKernelArg(backgroundPriorKernel, 1, sizeof(denoms_common_d), (void*) &denoms_common_d); PRINT_ON_ERROR;
     err = clSetKernelArg(backgroundPriorKernel, 2, sizeof(P_zdw_B_d), (void*) &P_zdw_B_d); PRINT_ON_ERROR;
     err = clSetKernelArg(backgroundPriorKernel, 3, sizeof(backgroundLmProb), (void*) &backgroundLmProb); PRINT_ON_ERROR;
@@ -239,11 +237,10 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     err = gpu::launchKernel(backgroundPriorKernel, gridDimBackgroundPrior, blockDimBackgroundPrior);
 
     // P(Z_d,w | theta_j)
-    // FIXME - Create a function so I don't need to call clSetKernelArg a million times
     err = clSetKernelArg(topicPriorKernel, 0, sizeof(prev_document_coverage_d), (void*) &prev_document_coverage_d); PRINT_ON_ERROR;
     err = clSetKernelArg(topicPriorKernel, 1, sizeof(prev_topic_models_d), (void*) &prev_topic_models_d); PRINT_ON_ERROR;
     err = clSetKernelArg(topicPriorKernel, 2, sizeof(denoms_common_d), (void*) &denoms_common_d); PRINT_ON_ERROR;
-    err = clSetKernelArg(topicPriorKernel, 3, sizeof(background_lm_d), (void*) &background_lm_d); PRINT_ON_ERROR;
+    err = clSetKernelArg(topicPriorKernel, 3, sizeof(modelData.background_lm_d), (void*) &modelData.background_lm_d); PRINT_ON_ERROR;
     err = clSetKernelArg(topicPriorKernel, 4, sizeof(P_zdw_j_d), (void*) &P_zdw_j_d); PRINT_ON_ERROR;
     err = clSetKernelArg(topicPriorKernel, 5, sizeof(backgroundLmProb), (void*) &backgroundLmProb); PRINT_ON_ERROR;
     err = clSetKernelArg(topicPriorKernel, 6, sizeof(previous.num_documents), (void*) &previous.num_documents); PRINT_ON_ERROR;
@@ -257,14 +254,14 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     // M-step
 
-    // Copy all data to the GPU
+    // Allocate output buffers
     cl_mem topic_models_d = gpu::deviceOutputAllocate(sizeof(double) * previous.num_topics * previous.vocab_size, &err); PRINT_ON_ERROR;
     cl_mem document_coverage_d = gpu::deviceOutputAllocate(sizeof(double) * previous.num_topics * previous.num_documents, &err); PRINT_ON_ERROR;
 
     // Set arguments
     err = clSetKernelArg(documentUpdateKernel, 0, sizeof(P_zdw_B_d), (void*) &P_zdw_B_d); PRINT_ON_ERROR;
     err = clSetKernelArg(documentUpdateKernel, 1, sizeof(P_zdw_j_d), (void*) &P_zdw_j_d); PRINT_ON_ERROR;
-    err = clSetKernelArg(documentUpdateKernel, 2, sizeof(document_counts_d), (void*) &document_counts_d); PRINT_ON_ERROR;
+    err = clSetKernelArg(documentUpdateKernel, 2, sizeof(modelData.document_counts_d), (void*) &modelData.document_counts_d); PRINT_ON_ERROR;
     err = clSetKernelArg(documentUpdateKernel, 3, sizeof(document_coverage_d), (void*) &document_coverage_d); PRINT_ON_ERROR;
     err = clSetKernelArg(documentUpdateKernel, 4, sizeof(previous.num_documents), (void*) &previous.num_documents); PRINT_ON_ERROR;
     err = clSetKernelArg(documentUpdateKernel, 5, sizeof(previous.vocab_size), (void*) &previous.vocab_size); PRINT_ON_ERROR;
@@ -272,7 +269,7 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     err = clSetKernelArg(topicUpdateKernel, 0, sizeof(P_zdw_B_d), (void*) &P_zdw_B_d); PRINT_ON_ERROR;
     err = clSetKernelArg(topicUpdateKernel, 1, sizeof(P_zdw_j_d), (void*) &P_zdw_j_d); PRINT_ON_ERROR;
-    err = clSetKernelArg(topicUpdateKernel, 2, sizeof(document_counts_d), (void*) &document_counts_d); PRINT_ON_ERROR;
+    err = clSetKernelArg(topicUpdateKernel, 2, sizeof(modelData.document_counts_d), (void*) &modelData.document_counts_d); PRINT_ON_ERROR;
     err = clSetKernelArg(topicUpdateKernel, 3, sizeof(topic_models_d), (void*) &topic_models_d); PRINT_ON_ERROR;
     err = clSetKernelArg(topicUpdateKernel, 4, sizeof(previous.num_documents), (void*) &previous.num_documents); PRINT_ON_ERROR;
     err = clSetKernelArg(topicUpdateKernel, 5, sizeof(previous.vocab_size), (void*) &previous.vocab_size); PRINT_ON_ERROR;
@@ -296,10 +293,8 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     // Cleanup
     clReleaseMemObject(topic_models_d); PRINT_ON_ERROR;
-    clReleaseMemObject(document_counts_d); PRINT_ON_ERROR;
     clReleaseMemObject(prev_document_coverage_d); PRINT_ON_ERROR;
     clReleaseMemObject(prev_topic_models_d); PRINT_ON_ERROR;
-    clReleaseMemObject(background_lm_d); PRINT_ON_ERROR;
 
     // Normalize the outputs
     // FIXME - Perform this step on the GPU instead

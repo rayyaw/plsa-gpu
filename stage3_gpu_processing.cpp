@@ -109,8 +109,6 @@ void transposeDocumentCoverage(EMstep &model) {
 
 
 EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
-    gpu::initializeGpuData(1);
-
     // Double buffering!
     EMstep first = EMstep(num_topics, model.document_count, model.vocab_size);
     EMstep second = EMstep(num_topics, model.document_count, model.vocab_size);
@@ -168,8 +166,6 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     clReleaseMemObject(P_zdw_B_d);
     clReleaseMemObject(P_zdw_j_d);
 
-    gpu::destroyGpuData();
-
     cout << "Completed EM phase. Saving results to file..." << endl;
     return to_return;
 }
@@ -180,7 +176,10 @@ int main(int argc, char *argv[]) {
         exit(-1);
     }
 
+    gpu::initializeGpuData(1);
+    
     ModelData model = loadModelFromFile();
+    cl_int err = model.mirrorGpu(); PRINT_ON_ERROR;
 
     unsigned int num_topics = atoi(argv[1]);
     float bg_prob = atof(argv[2]);
@@ -189,4 +188,6 @@ int main(int argc, char *argv[]) {
 
     // Save output to file
     saveEmToFile(output);
+
+    gpu::destroyGpuData();
 }

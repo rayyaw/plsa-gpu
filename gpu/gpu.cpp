@@ -9,9 +9,10 @@
 using std::string;
 
 using gpu::GpuProps;
+using utils::ListWithSize;
 
-utils::ListWithSize<cl_device_id> *devices;
-utils::ListWithSize<cl_command_queue> *command_queues;
+ListWithSize<cl_device_id> *devices;
+ListWithSize<cl_command_queue> *command_queues;
 cl_context *context;
 map<const char*, cl_kernel> *available_kernels;
 
@@ -48,7 +49,7 @@ cl_int gpu::initializeGpuData(size_t device_no) {
         return err;
     }
 
-    devices = new utils::ListWithSize<cl_device_id>();
+    devices = new ListWithSize<cl_device_id>();
     devices -> items = devices_local;
     devices -> num_items = numDevices;
 
@@ -87,7 +88,7 @@ cl_int gpu::initializeGpuData(size_t device_no) {
 
     }
     
-    command_queues = new utils::ListWithSize<cl_command_queue>();
+    command_queues = new ListWithSize<cl_command_queue>();
     command_queues -> num_items = devices -> num_items;
     command_queues -> items = queues;
 
@@ -151,8 +152,8 @@ GpuProps gpu::getDeviceProps(cl_device_id device) {
     return output;
 }
 
-utils::ListWithSize<size_t> gpu::makeDim2(size_t fst, size_t snd) {
-    utils::ListWithSize<size_t> lst = utils::ListWithSize<size_t>();
+ListWithSize<size_t> gpu::makeDim2(size_t fst, size_t snd) {
+    ListWithSize<size_t> lst = ListWithSize<size_t>();
     lst.num_items = 2;
     lst.items = new size_t[2];
     lst.items[0] = fst;
@@ -161,8 +162,8 @@ utils::ListWithSize<size_t> gpu::makeDim2(size_t fst, size_t snd) {
     return lst;
 }
 
-utils::ListWithSize<size_t> gpu::makeDim3(size_t fst, size_t snd, size_t trd) {
-    utils::ListWithSize<size_t> lst = utils::ListWithSize<size_t>();
+ListWithSize<size_t> gpu::makeDim3(size_t fst, size_t snd, size_t trd) {
+    ListWithSize<size_t> lst = ListWithSize<size_t>();
     lst.num_items = 3;
     lst.items = new size_t[3];
     lst.items[0] = fst;
@@ -223,7 +224,7 @@ cl_mem gpu::deviceIntermediateAllocate(size_t nbytes, cl_int *err) {
     return clCreateBuffer(*context, CL_MEM_READ_WRITE, nbytes, NULL, err);
 }
 
-cl_int gpu::launchKernel(cl_kernel kernel, utils::ListWithSize<size_t> gridDim, utils::ListWithSize<size_t> blockDim) {
+cl_int gpu::launchKernel(cl_kernel kernel, ListWithSize<size_t> gridDim, ListWithSize<size_t> blockDim) {
     cl_int err;
 
     FOR_ALL_DEVICES(
