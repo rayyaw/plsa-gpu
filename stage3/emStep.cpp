@@ -214,6 +214,9 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     cl_kernel documentUpdateKernel = gpu::compileKernelFromFile("kernels/mstep.cl", "computeDocumentUpdate", &err); PRINT_ON_ERROR;
     cl_kernel topicUpdateKernel = gpu::compileKernelFromFile("kernels/mstep.cl", "computeTopicUpdate", &err); PRINT_ON_ERROR;
 
+    cl_kernel normalizeCoverageKernel = gpu::compileKernelFromFile("kernels/normalize.cl", "normalizeDocumentCoverage", &err); PRINT_ON_ERROR;
+    cl_kernel normalizeModelKernel = gpu::compileKernelFromFile("kernels/normalize.cl", "normalizeTopicModels", &err); PRINT_ON_ERROR;
+
     // Copy data to the GPU
     cl_mem prev_document_coverage_d = gpu::hostToDeviceCopy<double>(previous.document_coverage, previous.num_topics * previous.num_documents, &err); PRINT_ON_ERROR;
     cl_mem prev_topic_models_d = gpu::hostToDeviceCopy<double>(previous.topic_models, previous.num_topics * previous.vocab_size, &err); PRINT_ON_ERROR;
@@ -281,46 +284,40 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     err = gpu::launchKernel(documentUpdateKernel, gridDimDocument, blockDimDocument); PRINT_ON_ERROR;
 
-    err = gpu::copyDeviceToHost<double>(document_coverage_d, current.document_coverage, previous.num_topics * previous.num_documents); PRINT_ON_ERROR;
-
     // Launch kernel - topic updates
     ListWithSize<size_t> gridDimTopic = gpu::makeDim2(previous.num_topics, ceil((previous.vocab_size * 1.0) / blockSize) * blockSize);
     ListWithSize<size_t> blockDimTopic = gpu::makeDim2(1, blockSize);
 
     err = gpu::launchKernel(topicUpdateKernel, gridDimTopic, blockDimTopic); PRINT_ON_ERROR;
 
+    // Normalize the outputs
+    err = clSetKernelArg(normalizeCoverageKernel, 0, sizeof(document_coverage_d), (void*) &document_coverage_d); PRINT_ON_ERROR;
+    err = clSetKernelArg(normalizeCoverageKernel, 1, sizeof(previous.num_topics), (void*) &previous.num_topics); PRINT_ON_ERROR;
+    err = clSetKernelArg(normalizeCoverageKernel, 2, sizeof(previous.num_documents), (void*) &previous.num_documents); PRINT_ON_ERROR;
+
+    ListWithSize<size_t> gridDimNormCoverage = gpu::makeDim1(ceil((1.0 * previous.num_documents) / blockSize) * blockSize);
+    ListWithSize<size_t> blockDimNormCoverage = gpu::makeDim1(blockSize);
+
+    err = gpu::launchKernel(normalizeCoverageKernel, gridDimNormCoverage, blockDimNormCoverage); PRINT_ON_ERROR;
+
+    err = clSetKernelArg(normalizeModelKernel, 0, sizeof(topic_models_d), (void*) &topic_models_d); PRINT_ON_ERROR;
+    err = clSetKernelArg(normalizeModelKernel, 1, sizeof(previous.num_topics), (void*) &previous.num_topics); PRINT_ON_ERROR;
+    err = clSetKernelArg(normalizeModelKernel, 2, sizeof(previous.vocab_size), (void*) &previous.vocab_size); PRINT_ON_ERROR;
+
+    ListWithSize<size_t> gridDimNormModel = gpu::makeDim1(ceil((1.0 * previous.num_topics) / blockSize) * blockSize);
+    ListWithSize<size_t> blockDimNormModel = gpu::makeDim1(blockSize);
+
+    err = gpu::launchKernel(normalizeModelKernel, gridDimNormModel, blockDimNormModel); PRINT_ON_ERROR; 
+
+    // Copy back to host
+    err = gpu::copyDeviceToHost<double>(document_coverage_d, current.document_coverage, previous.num_topics * previous.num_documents); PRINT_ON_ERROR;
     err = gpu::copyDeviceToHost<double>(topic_models_d, current.topic_models, previous.num_topics * previous.vocab_size); PRINT_ON_ERROR;
 
     // Cleanup
     clReleaseMemObject(topic_models_d); PRINT_ON_ERROR;
+    clReleaseMemObject(document_coverage_d); PRINT_ON_ERROR;
     clReleaseMemObject(prev_document_coverage_d); PRINT_ON_ERROR;
     clReleaseMemObject(prev_topic_models_d); PRINT_ON_ERROR;
-
-    // Normalize the outputs
-    // FIXME - Perform this step on the GPU instead
-    for (size_t document = 0; document < previous.num_documents; document++) {
-        double denom = 0;
-
-        for (size_t topic = 0; topic < previous.num_topics; topic++) {
-            denom += current.document_coverage[document * previous.num_topics + topic];
-        }
-
-        for (size_t topic = 0; topic < previous.num_topics; topic++) {
-            current.document_coverage[document * previous.num_topics + topic] /= denom;
-        }
-    }
-
-    for (size_t i = 0; i < previous.num_topics; i++) {
-        double denom = 0;
-
-        for (size_t j = 0; j < previous.vocab_size; j++) {
-            denom += current.topic_models[i * previous.vocab_size + j];
-        }
-
-        for (size_t j = 0; j < previous.vocab_size; j++) {
-            current.topic_models[i * previous.vocab_size + j] /= denom;
-        }
-    }
 }
 
 bool isConverged(const EMstep &first, const EMstep &second) {
