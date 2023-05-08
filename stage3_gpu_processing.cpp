@@ -13,7 +13,7 @@
 #include <CL/cl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <sys/time.h>
 
 // C++ headers
 #include <cstddef>
@@ -30,6 +30,13 @@ using std::endl;
 
 #define MAXITER 2
 #define PRINT_ON_ERROR if (err != CL_SUCCESS) { cerr << "CL ERROR: " << err << endl; exit(1);}
+
+unsigned long long currentTimeMillis() {
+    struct timeval tv;
+
+    gettimeofday(&tv, NULL);
+    return (unsigned long long)(tv.tv_sec) * 1000 + (unsigned long long)(tv.tv_usec) / 1000;
+}
 
 ModelData loadModelFromFile() {
     // Load the counts and background LM from file.
@@ -135,16 +142,16 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     for (size_t i = 0; i < MAXITER; i++) {
         // This takes 42s per iteration, assuming 500 books (on the CPU)
         // On the GPU this takes 34s per iteration, assuming 400 books
-        time_t start_t = time(NULL);
+        unsigned long long start_t = currentTimeMillis();
         if (update_first) {
             gpuUpdate(first, second, model, prob_of_bg, scratchpad, P_zdw_B_d, P_zdw_j_d, denoms_common_d);
         } else {
             gpuUpdate(second, first, model, prob_of_bg, scratchpad, P_zdw_B_d, P_zdw_j_d, denoms_common_d);
         }
-        time_t end_t = time(NULL);
+        unsigned long long end_t = currentTimeMillis();
 
         cout << "Iteration number: " << i << endl;
-        cout << "Time taken: " << end_t - start_t << "s" << endl;
+        cout << "Time taken: " << end_t - start_t << "ms" << endl;
 
         if (isConverged(first, second)) {
             if (update_first) {
