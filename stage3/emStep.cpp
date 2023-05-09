@@ -192,10 +192,7 @@ void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 // Model Error: 3.38041
 // Coverage Error: 132.969
 void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, double backgroundLmProb,
-    double *scratchpad, cl_mem &P_zdw_B_d, cl_mem &P_zdw_j_d, cl_mem &denoms_common_d) {
-
-    // Scratchpad offsets
-    double *denoms_common = scratchpad;
+    cl_mem &P_zdw_B_d, cl_mem &P_zdw_j_d, cl_mem &denoms_common_d) {
     
     // Overhead - GPU setup
     cl_int err = CL_SUCCESS;

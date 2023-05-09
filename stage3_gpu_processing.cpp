@@ -126,8 +126,6 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     transposeDocumentCoverage(first);
 
     bool update_first = false;
-
-    double *scratchpad = new double[first.num_documents * first.vocab_size];
     
     // Setup GPU scratchpad memory
     cl_int err = CL_SUCCESS;
@@ -142,9 +140,9 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
         // On the GPU this takes 34s per iteration, assuming 400 books
         unsigned long long start_t = currentTimeMillis();
         if (update_first) {
-            gpuUpdate(first, second, model, prob_of_bg, scratchpad, P_zdw_B_d, P_zdw_j_d, denoms_common_d);
+            gpuUpdate(first, second, model, prob_of_bg, P_zdw_B_d, P_zdw_j_d, denoms_common_d);
         } else {
-            gpuUpdate(second, first, model, prob_of_bg, scratchpad, P_zdw_B_d, P_zdw_j_d, denoms_common_d);
+            gpuUpdate(second, first, model, prob_of_bg, P_zdw_B_d, P_zdw_j_d, denoms_common_d);
         }
         unsigned long long end_t = currentTimeMillis();
 
@@ -164,7 +162,6 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
         update_first = !update_first;
     }
 
-    delete[] scratchpad;
     clReleaseMemObject(denoms_common_d);
     clReleaseMemObject(P_zdw_B_d);
     clReleaseMemObject(P_zdw_j_d);
