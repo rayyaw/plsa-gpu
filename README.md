@@ -58,7 +58,7 @@ Note that both arguments are required. The `book to analyze argument` should be 
 
 You can also run `make` to make all targets, and call each stage in the pipeline without needing to run `make` for each stage.
 
-**Important Note:** You may need to modify the `Makefile` depending on the exact location of your OpenCL install. You should replace the `-L` and `-I` arguments with the path to your OpenCL library and header files respectively.
+There is also a script `bin/cpu_full_staged.sh` or `bin/gpu_full_staged.sh` that can be used to run the full pipeline with the same parameters that were used for benchmarking.
 
 ## Model Format
 
