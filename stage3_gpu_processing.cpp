@@ -174,13 +174,14 @@ EMstepExtended runEm(ModelDataExtended &model, size_t num_topics, double prob_of
     clReleaseMemObject(P_zdw_B_d);
     clReleaseMemObject(P_zdw_j_d);
 
+    first.gpuToCpuCopy();
+    second.gpuToCpuCopy();
+
     cout << "Completed EM phase. Saving results to file..." << endl;
 
     if (update_first) {
-        second.gpuToCpuCopy();
         return second;
     } else {
-        first.gpuToCpuCopy();
         return first;
     }
 }
