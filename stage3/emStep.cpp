@@ -317,7 +317,6 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
 bool isConverged(const EMstep &first, const EMstep &second) {
     // Check for convergence by subtracting the vectors and using an L1-norm over all values
-    // FIXME - is L-inf norm faster on GPU despite control divergence?
 
     long double error_norm_coverage = 0;
     long double error_norm_model = 0;
@@ -334,6 +333,5 @@ bool isConverged(const EMstep &first, const EMstep &second) {
     cout << "Coverage error: " << error_norm_coverage << endl;
     cout << endl;
 
-    // FIXME - Tweak these values
     return (error_norm_model < 2 && error_norm_coverage < 30);
 }
