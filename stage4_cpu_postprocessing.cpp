@@ -20,7 +20,7 @@
 #include <vector>
 
 // Local headers
-#include "stage3/emStep.h"
+#include "modelClass/emStep.h"
 
 using std::cerr;
 using std::cout;

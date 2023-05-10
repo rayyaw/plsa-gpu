@@ -18,8 +18,9 @@
 #include <iostream>
 
 // Local headers
-#include "stage3/emStep.h"
-#include "stage3/modelData.h"
+#include "emUpdate/cpuUpdate.h"
+#include "modelClass/emStep.h"
+#include "modelClass/modelData.h"
 
 using std::cerr;
 using std::cout;
@@ -91,8 +92,8 @@ void saveEmToFile(const EMstep &data) {
 
 EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     // Double buffering!
-    EMstep first = EMstep(num_topics, model.document_count, model.vocab_size);
-    EMstep second = EMstep(num_topics, model.document_count, model.vocab_size);
+    EMstep first(num_topics, model.document_count, model.vocab_size);
+    EMstep second(num_topics, model.document_count, model.vocab_size);
     
     first.genrandom();
 
@@ -104,14 +105,14 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     for (size_t i = 0; i < MAXITER; i++) {
         // This takes 42s per iteration, assuming 500 books
         if (update_first) {
-            cpuUpdate(first, second, model, prob_of_bg, P_zdw_B, P_zdw_j);
+            EMupdate::cpuUpdate(first, second, model, prob_of_bg, P_zdw_B, P_zdw_j);
         } else {
-            cpuUpdate(second, first, model, prob_of_bg, P_zdw_B, P_zdw_j);
+            EMupdate::cpuUpdate(second, first, model, prob_of_bg, P_zdw_B, P_zdw_j);
         }
 
         cout << "Iteration number: " << i << endl;
 
-        if (isConverged(first, second)) {
+        if (EMupdate::isConverged(first, second)) {
             if (update_first) {
                 return first;
             } else {
