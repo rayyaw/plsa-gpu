@@ -42,13 +42,16 @@ io: io/io.cpp
 linalg: linalg/sgemm.cpp
 	g++ -c linalg/sgemm.cpp -o build/linalg.o -I ${OPENCL_H_PATH}
 
+reduce: linalg/reduce.cpp
+	g++ -c linalg/reduce.cpp -o build/reduce.o -I ${OPENCL_H_PATH}
+
 stage3_cpu: stage3_cpu_cpp model_data em_step gpu io linalg
 	g++ build/stage3_cpu_cpp.o build/model_data.o build/em_step.o build/io.o build/linalg.o build/gpu.o -O3 -o bin/stage3_cpu -I ${OPENCL_H_PATH} -L ${OPENCL_LIB_PATH} -lOpenCL
 
 stage3_gpu_cpp: stage3_gpu_processing.cpp
 	g++ -c stage3_gpu_processing.cpp -O3 -o build/stage3_gpu_cpp.o -I ${OPENCL_H_PATH}
 
-stage3_gpu: io linalg gpu stage3_gpu_cpp model_data em_step
-	g++ build/em_step.o build/model_data.o build/stage3_gpu_cpp.o build/io.o build/linalg.o build/gpu.o -o bin/stage3_gpu -I ${OPENCL_H_PATH} -L ${OPENCL_LIB_PATH} -lOpenCL
+stage3_gpu: io linalg gpu stage3_gpu_cpp model_data em_step reduce
+	g++ build/reduce.o build/em_step.o build/model_data.o build/stage3_gpu_cpp.o build/io.o build/linalg.o build/gpu.o -o bin/stage3_gpu -I ${OPENCL_H_PATH} -L ${OPENCL_LIB_PATH} -lOpenCL
 
 all_gpu: stage3_gpu

@@ -3,6 +3,7 @@
 #include "modelData.h"
 
 #include "../gpu/gpu.h"
+#include "../linalg/reduce.h"
 #include "../linalg/sgemm.h"
 
 // C headers
@@ -207,7 +208,8 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     cl_kernel documentUpdateKernel = gpu::compileKernelFromFile("kernels/mstep.cl", "computeDocumentUpdate", &err); PRINT_ON_ERROR;
     cl_kernel topicUpdateKernel = gpu::compileKernelFromFile("kernels/mstep.cl", "computeTopicUpdate", &err); PRINT_ON_ERROR;
 
-    cl_kernel reductionKernel = gpu::compileKernelFromFile("kernels/normalize.cl", "reduceAlongMajorAxis", &err); PRINT_ON_ERROR;
+    cl_kernel reductionKernelWide = gpu::compileKernelFromFile("kernels/normalize.cl", "reduceAlongMajorAxisWide", &err); PRINT_ON_ERROR;
+    cl_kernel reductionKernelTall = gpu::compileKernelFromFile("kernels/normalize.cl", "reduceAlongMajorAxisTall", &err); PRINT_ON_ERROR;
     cl_kernel normalizationKernel = gpu::compileKernelFromFile("kernels/normalize.cl", "normalizeAlongMajorAxis", &err); PRINT_ON_ERROR;
 
     // Copy data to the GPU
@@ -274,21 +276,18 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     // Alloc extra data
     cl_mem coverageSums = gpu::deviceIntermediateAllocate(sizeof(double) * previous.num_documents, &err); PRINT_ON_ERROR;
-    cl_mem modelSums = gpu::deviceIntermediateAllocate(sizeof(double) * previous.num_topics, &err); PRINT_ON_ERROR;
-
     // Calculate normalization denominators
     cl_mem *normalizeCoverageArgsList[4] = {&document_coverage_d, &coverageSums, (cl_mem*) &previous.num_documents, (cl_mem*) &previous.num_topics};
     ListWithSize<cl_mem*> normalizeCoverageArgs(4, normalizeCoverageArgsList);
 
-    err = gpu::setKernelArgs(reductionKernel, normalizeCoverageArgs); PRINT_ON_ERROR;
-    err = gpu::launch1dKernelWithRoundup(reductionKernel, previous.num_documents, blockSize); PRINT_ON_ERROR;
+    err = gpu::setKernelArgs(reductionKernelWide, normalizeCoverageArgs); PRINT_ON_ERROR;
+    err = gpu::launch1dKernelWithRoundup(reductionKernelWide, previous.num_documents, blockSize); PRINT_ON_ERROR;
+
+    cl_mem modelSums = linalg::reduceTall(topic_models_d, previous.num_topics, previous.vocab_size, blockSize, reductionKernelTall, &err); PRINT_ON_ERROR;
 
     cl_mem *normalizeModelArgsList[4] = {&topic_models_d, &modelSums, (cl_mem*) &previous.num_topics, (cl_mem*) &previous.vocab_size};
     ListWithSize<cl_mem*> normalizeModelArgs(4, normalizeModelArgsList);
     
-    err = gpu::setKernelArgs(reductionKernel, normalizeModelArgs); PRINT_ON_ERROR;
-    err = gpu::launch1dKernelWithRoundup(reductionKernel, previous.num_topics, blockSize); PRINT_ON_ERROR;
-
     // Normalize the output
     err = gpu::setKernelArgs(normalizationKernel, normalizeCoverageArgs); PRINT_ON_ERROR;
     err = gpu::launch2dKernelWithRoundup(normalizationKernel, previous.num_documents, previous.num_topics, blockSize, 1); PRINT_ON_ERROR;
