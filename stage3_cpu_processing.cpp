@@ -25,7 +25,7 @@ using std::cerr;
 using std::cout;
 using std::endl;
 
-#define MAXITER 2
+#define MAXITER 100
 
 ModelData loadModelFromFile() {
     // Load the counts and background LM from file.

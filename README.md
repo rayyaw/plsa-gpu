@@ -11,6 +11,7 @@ APLSA (Accelerated Probabilistic Latent Semantic Analysis) is a framework design
 
 ## Run these steps before you begin analysis!
 
+- Go into the `Makefile` and set the `OPENCL_H_PATH` and `OPENCL_LIB_PATH` variables (on lines 4 and 5) to the path of your OpenCL installation.
 
 
 ## Data Pipeline

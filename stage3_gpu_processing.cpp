@@ -28,7 +28,7 @@ using std::cerr;
 using std::cout;
 using std::endl;
 
-#define MAXITER 2
+#define MAXITER 100
 #define PRINT_ON_ERROR if (err != CL_SUCCESS) { cerr << "CL ERROR: " << err << endl; exit(1);}
 
 unsigned long long currentTimeMillis() {

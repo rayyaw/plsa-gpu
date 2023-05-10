@@ -335,5 +335,5 @@ bool isConverged(const EMstep &first, const EMstep &second) {
     cout << endl;
 
     // FIXME - Tweak these values
-    return (error_norm_model < 1 && error_norm_coverage < 2);
+    return (error_norm_model < 2 && error_norm_coverage < 30);
 }
