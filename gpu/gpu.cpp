@@ -152,6 +152,13 @@ GpuProps gpu::getDeviceProps(cl_device_id device) {
     return output;
 }
 
+ListWithSize<size_t> gpu::makeDim1(size_t fst) {
+    ListWithSize<size_t> lst = ListWithSize<size_t>(1);
+    lst.items[0] = fst;
+
+    return lst;
+}
+
 ListWithSize<size_t> gpu::makeDim2(size_t fst, size_t snd) {
     ListWithSize<size_t> lst = ListWithSize<size_t>(2);
     lst.items[0] = fst;
@@ -244,4 +251,30 @@ cl_int gpu::launchKernel(cl_kernel kernel, ListWithSize<size_t> gridDim, ListWit
     )
 
     return CL_SUCCESS;
+}
+
+cl_int gpu::launch1dKernelWithRoundup(cl_kernel kernel, size_t minThreadsX, size_t blockDimX) {
+    ListWithSize<size_t> gridDim = makeDim1(ceil((minThreadsX * 1.0) / blockDimX) * blockDimX);
+    ListWithSize<size_t> blockDim = makeDim1(blockDimX);
+
+    return launchKernel(kernel, gridDim, blockDim);
+}
+
+cl_int gpu::launch2dKernelWithRoundup(cl_kernel kernel, size_t minThreadsX, size_t minThreadsY, 
+    size_t blockDimX, size_t blockDimY) {
+    ListWithSize<size_t> gridDim = makeDim2(ceil((minThreadsX * 1.0) / blockDimX) * blockDimX, 
+        ceil((minThreadsY * 1.0) / blockDimY) * blockDimY);
+    ListWithSize<size_t> blockDim = makeDim2(blockDimX, blockDimY);
+
+    return launchKernel(kernel, gridDim, blockDim);
+}
+
+cl_int gpu::launch3dKernelWithRoundup(cl_kernel kernel, size_t minThreadsX, size_t minThreadsY, size_t minThreadsZ, 
+    size_t blockDimX, size_t blockDimY, size_t blockDimZ) {
+    ListWithSize<size_t> gridDim = makeDim3(ceil((minThreadsX * 1.0) / blockDimX) * blockDimX,
+        ceil((minThreadsY * 1.0) / blockDimY) * blockDimY,
+        ceil((minThreadsZ * 1.0) / blockDimZ) * blockDimZ);
+    ListWithSize<size_t> blockDim = makeDim3(blockDimX, blockDimY, blockDimZ);
+
+    return launchKernel(kernel, gridDim, blockDim);
 }

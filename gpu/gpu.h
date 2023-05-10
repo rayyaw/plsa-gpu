@@ -48,6 +48,7 @@ namespace gpu {
 
     // Saves the hassle of creating these manually
     // Create a ListWithSize of dimension 2 or 3 to store the grid or block dimensions
+    ListWithSize<size_t> makeDim1(size_t fst);
     ListWithSize<size_t> makeDim2(size_t fst, size_t snd);
     ListWithSize<size_t> makeDim3(size_t fst, size_t snd, size_t trd);
 
@@ -176,4 +177,16 @@ namespace gpu {
      * @return cl_int An error code, or CL_SUCCESS if no error occurred
      */
     cl_int launchKernel(cl_kernel kernel, ListWithSize<size_t> gridDim, ListWithSize<size_t> blockDim);
+
+    /**
+     * @brief Launch the specified kernel, and block until it's done. Automatically determine grid size.
+     * 
+     * @param kernel The kernel to run.
+     * @param minThreads The minimum number of threads in each dimension.
+     * @param blockDim The block size in each dimension.
+     * @return cl_int An error code, or CL_SUCCESS if no error occurred
+     */
+    cl_int launch1dKernelWithRoundup(cl_kernel kernel, size_t minThreadsX, size_t blockDimX);
+    cl_int launch2dKernelWithRoundup(cl_kernel kernel, size_t minThreadsX, size_t minThreadsY, size_t blockDimX, size_t blockDimY);
+    cl_int launch3dKernelWithRoundup(cl_kernel kernel, size_t minThreadsX, size_t minThreadsY, size_t minThreadsZ, size_t blockDimX, size_t blockDimY, size_t blockDimZ);
 }

@@ -223,11 +223,9 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     ListWithSize<cl_mem*> backgroundPriorArgs(6, backgroundPriorArgsList);
     err = gpu::setKernelArgs(backgroundPriorKernel, backgroundPriorArgs); PRINT_ON_ERROR;
 
-    ListWithSize<size_t> gridDimBackgroundPrior = gpu::makeDim2(previous.num_documents, ceil((previous.vocab_size * 1.0) / blockSize) * blockSize);
-    ListWithSize<size_t> blockDimBackgroundPrior = gpu::makeDim2(1, blockSize);
-
-    // FIXME - Automatically round up to block size version
-    err = gpu::launchKernel(backgroundPriorKernel, gridDimBackgroundPrior, blockDimBackgroundPrior);
+    err = gpu::launch2dKernelWithRoundup(backgroundPriorKernel,
+        previous.num_documents, previous.vocab_size, 
+        1, blockSize); PRINT_ON_ERROR;
 
     // P(Z_d,w | theta_j)
     cl_mem *topicPriorArgsList[9] = {&prev_document_coverage_d, &prev_topic_models_d, &denoms_common_d, 
@@ -237,10 +235,9 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     ListWithSize<cl_mem*> topicPriorArgs(9, topicPriorArgsList);
     err = gpu::setKernelArgs(topicPriorKernel, topicPriorArgs); PRINT_ON_ERROR;
 
-    ListWithSize<size_t> gridDimTopicPrior = gpu::makeDim3(previous.num_topics, previous.num_documents, ceil((previous.vocab_size * 1.0) / blockSize) * blockSize);
-    ListWithSize<size_t> blockDimTopicPrior = gpu::makeDim3(1, 1, blockSize);
-
-    err = gpu::launchKernel(topicPriorKernel, gridDimTopicPrior, blockDimTopicPrior); PRINT_ON_ERROR;
+    err = gpu::launch3dKernelWithRoundup(topicPriorKernel,
+        previous.num_topics, previous.num_documents, previous.vocab_size,
+        1, 1, blockSize); PRINT_ON_ERROR;
 
     // M-step
 
@@ -255,10 +252,10 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     ListWithSize<cl_mem*> documentUpdateArgs(7, documentUpdateArgsList);
     err = gpu::setKernelArgs(documentUpdateKernel, documentUpdateArgs); PRINT_ON_ERROR;
 
-    ListWithSize<size_t> gridDimDocument = gpu::makeDim2(previous.num_topics, ceil((previous.num_documents * 1.0) / blockSize) * blockSize);
-    ListWithSize<size_t> blockDimDocument = gpu::makeDim2(1, blockSize);
+    err = gpu::launch2dKernelWithRoundup(documentUpdateKernel,
+        previous.num_topics, previous.num_documents,
+        1, blockSize); PRINT_ON_ERROR;
 
-    err = gpu::launchKernel(documentUpdateKernel, gridDimDocument, blockDimDocument); PRINT_ON_ERROR;
     err = gpu::copyDeviceToHost<double>(document_coverage_d, current.document_coverage, previous.num_topics * previous.num_documents); PRINT_ON_ERROR;
 
     // Topic models
@@ -268,10 +265,10 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     ListWithSize<cl_mem*> topicUpdateArgs(7, topicUpdateArgsList);
     err = gpu::setKernelArgs(topicUpdateKernel, topicUpdateArgs); PRINT_ON_ERROR;
 
-    ListWithSize<size_t> gridDimTopic = gpu::makeDim2(previous.num_topics, ceil((previous.vocab_size * 1.0) / blockSize) * blockSize);
-    ListWithSize<size_t> blockDimTopic = gpu::makeDim2(1, blockSize);
-
-    err = gpu::launchKernel(topicUpdateKernel, gridDimTopic, blockDimTopic); PRINT_ON_ERROR;
+    err = gpu::launch2dKernelWithRoundup(topicUpdateKernel,
+        previous.num_topics, previous.vocab_size,
+        1, blockSize); PRINT_ON_ERROR;
+        
     err = gpu::copyDeviceToHost<double>(topic_models_d, current.topic_models, previous.num_topics * previous.vocab_size); PRINT_ON_ERROR;
 
     // Cleanup
