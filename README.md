@@ -16,7 +16,7 @@ The data pipeline is designed as follows:
 
 1. Data download. This part cannot be GPU accelerated, as the limiting factor is your network speed. This stage took me a total of 15 hours (in several sessions) to complete.
 
-`python3 download-books.py`
+`python3 stage1_download_books.py`
 
 This will download most of the [Project Gutenberg collection](https://www.gutenberg.org/) into the `books/` folder. The only preprocessing at this stage is removing the Project Gutenberg headers and footers (these have information such as the title, author, and license). We include the title and author into the title of the book instead. The output format is `.txt`.
 
