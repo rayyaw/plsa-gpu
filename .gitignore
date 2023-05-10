@@ -1,4 +1,5 @@
 books/*.txt
 .vscode/*
-bin/*
+bin/*.exe
+build/*.o
 model/*.bin

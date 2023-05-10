@@ -9,6 +9,9 @@ APLSA (Accelerated Probabilistic Latent Semantic Analysis) is a framework design
 - If running on Windows, you must use [MinGW](https://www.mingw-w64.org/) as WSL does not currently support GPU peripherals.
 - If running the GPU implementation, you must run on a computer with a GPU.
 
+## Run these steps before you begin analysis!
+
+
 
 ## Data Pipeline
 
