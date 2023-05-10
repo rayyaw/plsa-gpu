@@ -127,6 +127,20 @@ namespace gpu {
     }
 
     /**
+     * @brief Create a device memory array, and copy the host memory onto it
+     * 
+     * @param hostMem The host memory, along with its length. num_items should be the number of ITEMS, not bytes.
+     * @param nitems The number of items to use.
+     * @param err Modified on failure. If this is not equal to CL_SUCCESS, an error has occurred.
+     * @return cl_mem The device global memory that was allocated. It is your responsibility to release it.
+     */
+    template <typename T>
+    cl_mem hostToDeviceCopyWithRw(T *hostMem, size_t nitems, cl_int *err) {
+        SET_ERROR_IF_NULL;
+        return clCreateBuffer(*context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, nitems * sizeof(T), hostMem, err);
+    }
+
+    /**
      * @brief Create a device memory array that is write-only (for output)
      * 
      * @param nbytes The number of bytes to copy
@@ -152,7 +166,7 @@ namespace gpu {
      * @return cl_int An error code, or CL_SUCCESS if no error occurred
      */
     template <typename T>
-    cl_int copyDeviceToHost(cl_mem deviceMem, ListWithSize<T> hostMem) {
+    cl_int deviceToHostCopy(cl_mem deviceMem, ListWithSize<T> hostMem) {
         return clEnqueueReadBuffer(command_queues -> items[0], deviceMem, CL_TRUE, 0, hostMem.num_items * sizeof(T), hostMem.items, 0, NULL, NULL);
     }
 
@@ -164,7 +178,7 @@ namespace gpu {
      * @return cl_int An error code, or CL_SUCCESS if no error occurred
      */
     template <typename T>
-    cl_int copyDeviceToHost(cl_mem deviceMem, T *hostMem, size_t nitems) {
+    cl_int deviceToHostCopy(cl_mem deviceMem, T *hostMem, size_t nitems) {
         return clEnqueueReadBuffer(command_queues -> items[0], deviceMem, CL_TRUE, 0, nitems * sizeof(T), hostMem, 0, NULL, NULL);
     }
 

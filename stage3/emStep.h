@@ -17,6 +17,11 @@ class EMstep {
     double *document_coverage = NULL;
     double *topic_models = NULL;
 
+    cl_mem document_coverage_d = NULL;
+    cl_mem topic_models_d = NULL;
+
+    bool is_gpu_stored = false;
+
     /**
      * @brief Construct a new EM Step object
      * First parameter is number of topics, second is number of documents, third is vocabulary size 
@@ -24,6 +29,9 @@ class EMstep {
     EMstep(size_t, size_t, size_t);
     EMstep(const EMstep &);
     ~EMstep();
+
+    cl_int cpuToGpuCopy();
+    cl_int gpuToCpuCopy();
 
     /**
      * @brief Generate the EM Step parameters randomly
@@ -49,7 +57,7 @@ class EMstep {
 void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &ModelData, double backgroundLmProb,
     double *P_zdw_B, double *P_zdw_j);
 
-void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &ModelData, double backgroundLmProb, 
+void gpuUpdate(EMstep &current, EMstep &previous, ModelData &ModelData, double backgroundLmProb, 
     cl_mem &P_zdw_B_d, cl_mem &P_zdw_j_d, cl_mem &denoms_common_d);
 
 /**
@@ -60,3 +68,4 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &ModelData, do
  * @return true if the algorithm has converged to a local maximum, and false otherwise.
  */
 bool isConverged(const EMstep &first, const EMstep &second);
+bool isConvergedGpu(EMstep &first, EMstep &second, cl_mem coveragebuf_d, cl_mem modelbuf_d);

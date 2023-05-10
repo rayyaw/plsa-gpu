@@ -121,23 +121,29 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     EMstep second = EMstep(num_topics, model.document_count, model.vocab_size);
     
     first.genrandom();
+    second.genrandom();
+
+    cl_int err = CL_SUCCESS;
 
     // Required to run sgemm
     transposeDocumentCoverage(first);
 
+    err = first.cpuToGpuCopy(); PRINT_ON_ERROR;
+    err = second.cpuToGpuCopy(); PRINT_ON_ERROR;
+
     bool update_first = false;
     
     // Setup GPU scratchpad memory
-    cl_int err = CL_SUCCESS;
     cl_mem P_zdw_j_d = gpu::deviceIntermediateAllocate(sizeof(double) * first.num_documents * first.num_topics * first.vocab_size, &err); PRINT_ON_ERROR;
     cl_mem P_zdw_B_d = gpu::deviceIntermediateAllocate(sizeof(double) * first.num_documents * first.vocab_size, &err); PRINT_ON_ERROR;
 
     cl_mem denoms_common_d = gpu::deviceIntermediateAllocate(sizeof(double) * first.num_documents * first.vocab_size, &err); PRINT_ON_ERROR;
 
+    cl_mem coveragebuf_d = gpu::deviceIntermediateAllocate(sizeof(double) * first.num_topics * first.num_documents, &err); PRINT_ON_ERROR;
+    cl_mem modelbuf_d = gpu::deviceIntermediateAllocate(sizeof(double) * first.num_topics * first.vocab_size, &err); PRINT_ON_ERROR;
 
     for (size_t i = 0; i < MAXITER; i++) {
         // This takes 42s per iteration, assuming 500 books (on the CPU)
-        // On the GPU this takes 34s per iteration, assuming 400 books
         unsigned long long start_t = currentTimeMillis();
         if (update_first) {
             gpuUpdate(first, second, model, prob_of_bg, P_zdw_B_d, P_zdw_j_d, denoms_common_d);
@@ -149,7 +155,7 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
         cout << "Iteration number: " << i << endl;
         cout << "Time taken: " << end_t - start_t << "ms" << endl;
 
-        if (isConverged(first, second)) {
+        if (isConvergedGpu(first, second, coveragebuf_d, modelbuf_d)) {
             if (update_first) {
                 transposeDocumentCoverage(first);
                 break;
@@ -169,8 +175,10 @@ EMstep runEm(ModelData &model, size_t num_topics, double prob_of_bg) {
     cout << "Completed EM phase. Saving results to file..." << endl;
 
     if (update_first) {
+        second.gpuToCpuCopy();
         return second;
     } else {
+        first.gpuToCpuCopy();
         return first;
     }
 }

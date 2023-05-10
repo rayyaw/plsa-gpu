@@ -25,8 +25,8 @@ stage3_cpu_cpp: stage3_cpu_processing.cpp
 stage4_cpu_cpp: stage4_cpu_postprocessing.cpp
 	g++ -c build stage4_cpu_postprocessing.cpp -o build/stage4_cpu_cpp.o -I ${OPENCL_H_PATH}
 
-stage4_cpu: stage4_cpu_cpp em_step gpu io linalg
-	g++ build/io.o build/linalg.o build/gpu.o build/stage4_cpu_cpp.o build/em_step.o build/model_data.o -o bin/stage4_cpu -I ${OPENCL_H_PATH} -L ${OPENCL_LIB_PATH} -lOpenCL
+stage4_cpu: stage4_cpu_cpp em_step gpu io linalg reduce
+	g++ build/reduce.o build/io.o build/linalg.o build/gpu.o build/stage4_cpu_cpp.o build/em_step.o build/model_data.o -o bin/stage4_cpu -I ${OPENCL_H_PATH} -L ${OPENCL_LIB_PATH} -lOpenCL
 
 stage5_cpu: stage5_cpu_display.cpp
 	g++ stage5_cpu_display.cpp -o bin/stage5_cpu
@@ -45,8 +45,8 @@ linalg: linalg/sgemm.cpp
 reduce: linalg/reduce.cpp
 	g++ -c linalg/reduce.cpp -o build/reduce.o -I ${OPENCL_H_PATH}
 
-stage3_cpu: stage3_cpu_cpp model_data em_step gpu io linalg
-	g++ build/stage3_cpu_cpp.o build/model_data.o build/em_step.o build/io.o build/linalg.o build/gpu.o -O3 -o bin/stage3_cpu -I ${OPENCL_H_PATH} -L ${OPENCL_LIB_PATH} -lOpenCL
+stage3_cpu: stage3_cpu_cpp model_data em_step gpu io linalg reduce
+	g++ build/reduce.o build/stage3_cpu_cpp.o build/model_data.o build/em_step.o build/io.o build/linalg.o build/gpu.o -O3 -o bin/stage3_cpu -I ${OPENCL_H_PATH} -L ${OPENCL_LIB_PATH} -lOpenCL
 
 stage3_gpu_cpp: stage3_gpu_processing.cpp
 	g++ -c stage3_gpu_processing.cpp -O3 -o build/stage3_gpu_cpp.o -I ${OPENCL_H_PATH}

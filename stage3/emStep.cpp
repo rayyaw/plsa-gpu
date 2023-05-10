@@ -14,7 +14,10 @@
 #include <cstdlib>
 #include <iostream>
 
+#define RETURN_ON_ERROR if (err != CL_SUCCESS) return err;
 #define PRINT_ON_ERROR if (err != CL_SUCCESS) { cerr << "CL ERROR: " << err << endl; exit(1);}
+
+#define BLOCK_SIZE 256
 
 // Local ussing
 using linalg::sgemm;
@@ -50,6 +53,11 @@ EMstep::EMstep(const EMstep &other) {
 }
 
 EMstep::~EMstep() {
+    if (is_gpu_stored) {
+        clReleaseMemObject(document_coverage_d);
+        clReleaseMemObject(topic_models_d);
+    }
+
     delete[] document_coverage;
     delete[] topic_models;
 }
@@ -89,6 +97,23 @@ void EMstep::genrandom() {
 void EMstep::genrandom(long seed) {
     srand(seed);
     genrandom();
+}
+
+cl_int EMstep::cpuToGpuCopy() {
+    cl_int err = CL_SUCCESS;
+    document_coverage_d = gpu::hostToDeviceCopyWithRw<double>(document_coverage, num_documents * num_topics, &err);
+    topic_models_d = gpu::hostToDeviceCopyWithRw<double>(topic_models, num_topics * vocab_size, &err);
+    is_gpu_stored = true;
+
+    return err;
+}
+
+cl_int EMstep::gpuToCpuCopy() {
+    cl_int err = CL_SUCCESS;
+    err = gpu::deviceToHostCopy<double>(document_coverage_d, document_coverage, num_documents * num_topics);
+    err = gpu::deviceToHostCopy<double>(topic_models_d, topic_models, num_topics * vocab_size);
+
+    return err;
 }
 
 void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, double backgroundLmProb,
@@ -193,12 +218,12 @@ void cpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 // Model Error: 3.38041
 // Coverage Error: 132.969
 // FIXME - Allow async kernels/ multiple command queues
-void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, double backgroundLmProb,
+// FIXME - Refactor code into separate files
+void gpuUpdate(EMstep &current, EMstep &previous, ModelData &modelData, double backgroundLmProb,
     cl_mem &P_zdw_B_d, cl_mem &P_zdw_j_d, cl_mem &denoms_common_d) {
     
     // Overhead - GPU setup
     cl_int err = CL_SUCCESS;
-    size_t blockSize = 256;
     
     // Initialize kernels
     // These are lazy-loaded (if already loaded, just reuse) so not much overhead to call in every iteration
@@ -208,18 +233,12 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
     cl_kernel documentUpdateKernel = gpu::compileKernelFromFile("kernels/mstep.cl", "computeDocumentUpdate", &err); PRINT_ON_ERROR;
     cl_kernel topicUpdateKernel = gpu::compileKernelFromFile("kernels/mstep.cl", "computeTopicUpdate", &err); PRINT_ON_ERROR;
 
-    cl_kernel reductionKernelWide = gpu::compileKernelFromFile("kernels/normalize.cl", "reduceAlongMajorAxisWide", &err); PRINT_ON_ERROR;
-    cl_kernel reductionKernelTall = gpu::compileKernelFromFile("kernels/normalize.cl", "reduceAlongMajorAxisTall", &err); PRINT_ON_ERROR;
     cl_kernel normalizationKernel = gpu::compileKernelFromFile("kernels/normalize.cl", "normalizeAlongMajorAxis", &err); PRINT_ON_ERROR;
-
-    // Copy data to the GPU
-    cl_mem prev_document_coverage_d = gpu::hostToDeviceCopy<double>(previous.document_coverage, previous.num_topics * previous.num_documents, &err); PRINT_ON_ERROR;
-    cl_mem prev_topic_models_d = gpu::hostToDeviceCopy<double>(previous.topic_models, previous.num_topics * previous.vocab_size, &err); PRINT_ON_ERROR;
 
     // E-step
 
     // Document coverage is passed in as transposed
-    err = linalg::sgemmDevice(prev_document_coverage_d, prev_topic_models_d, denoms_common_d, previous.num_documents, previous.vocab_size, previous.num_topics); PRINT_ON_ERROR;
+    err = linalg::sgemmDevice(previous.document_coverage_d, previous.topic_models_d, denoms_common_d, previous.num_documents, previous.vocab_size, previous.num_topics); PRINT_ON_ERROR;
     
     // P(Z_d,w | B)
     cl_mem *backgroundPriorArgsList[6] = {&modelData.background_lm_d, &denoms_common_d, &P_zdw_B_d, 
@@ -230,10 +249,10 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     err = gpu::launch2dKernelWithRoundup(backgroundPriorKernel,
         previous.num_documents, previous.vocab_size, 
-        1, blockSize); PRINT_ON_ERROR;
+        1, BLOCK_SIZE); PRINT_ON_ERROR;
 
     // P(Z_d,w | theta_j)
-    cl_mem *topicPriorArgsList[9] = {&prev_document_coverage_d, &prev_topic_models_d, &denoms_common_d, 
+    cl_mem *topicPriorArgsList[9] = {&previous.document_coverage_d, &previous.topic_models_d, &denoms_common_d, 
         &modelData.background_lm_d, &P_zdw_j_d, 
         (cl_mem*) &backgroundLmProb, (cl_mem*) &previous.num_documents, (cl_mem*) &previous.vocab_size, (cl_mem*) &previous.num_topics};
     
@@ -242,16 +261,11 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     err = gpu::launch3dKernelWithRoundup(topicPriorKernel,
         previous.num_topics, previous.num_documents, previous.vocab_size,
-        1, 1, blockSize); PRINT_ON_ERROR;
+        1, 1, BLOCK_SIZE); PRINT_ON_ERROR;
 
     // M-step
-
-    // Allocate output buffers
-    cl_mem topic_models_d = gpu::deviceOutputAllocate(sizeof(double) * previous.num_topics * previous.vocab_size, &err); PRINT_ON_ERROR;
-    cl_mem document_coverage_d = gpu::deviceOutputAllocate(sizeof(double) * previous.num_topics * previous.num_documents, &err); PRINT_ON_ERROR;
-
     // Document coverage
-    cl_mem *documentUpdateArgsList[7] = {&P_zdw_B_d, &P_zdw_j_d, &modelData.document_counts_d, &document_coverage_d,
+    cl_mem *documentUpdateArgsList[7] = {&P_zdw_B_d, &P_zdw_j_d, &modelData.document_counts_d, &current.document_coverage_d,
         (cl_mem*) &previous.num_documents, (cl_mem*) &previous.vocab_size, (cl_mem*) &previous.num_topics};
 
     ListWithSize<cl_mem*> documentUpdateArgs(7, documentUpdateArgsList);
@@ -259,11 +273,11 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     err = gpu::launch2dKernelWithRoundup(documentUpdateKernel,
         previous.num_topics, previous.num_documents,
-        1, blockSize); PRINT_ON_ERROR;
+        1, BLOCK_SIZE); PRINT_ON_ERROR;
 
 
     // Topic models
-    cl_mem *topicUpdateArgsList[7] = {&P_zdw_B_d, &P_zdw_j_d, &modelData.document_counts_d, &topic_models_d,
+    cl_mem *topicUpdateArgsList[7] = {&P_zdw_B_d, &P_zdw_j_d, &modelData.document_counts_d, &current.topic_models_d,
         (cl_mem*) &previous.num_documents, (cl_mem*) &previous.vocab_size, (cl_mem*) &previous.num_topics};
     
     ListWithSize<cl_mem*> topicUpdateArgs(7, topicUpdateArgsList);
@@ -271,40 +285,31 @@ void gpuUpdate(EMstep &current, const EMstep &previous, ModelData &modelData, do
 
     err = gpu::launch2dKernelWithRoundup(topicUpdateKernel,
         previous.num_topics, previous.vocab_size,
-        1, blockSize); PRINT_ON_ERROR;
+        1, BLOCK_SIZE); PRINT_ON_ERROR;
         
 
     // Alloc extra data
     cl_mem coverageSums = gpu::deviceIntermediateAllocate(sizeof(double) * previous.num_documents, &err); PRINT_ON_ERROR;
     // Calculate normalization denominators
-    cl_mem *normalizeCoverageArgsList[4] = {&document_coverage_d, &coverageSums, (cl_mem*) &previous.num_documents, (cl_mem*) &previous.num_topics};
+    cl_mem *normalizeCoverageArgsList[4] = {&current.document_coverage_d, &coverageSums, (cl_mem*) &previous.num_documents, (cl_mem*) &previous.num_topics};
     ListWithSize<cl_mem*> normalizeCoverageArgs(4, normalizeCoverageArgsList);
+ 
+    err = linalg::reduceWide(current.document_coverage_d, coverageSums, previous.num_documents, previous.num_topics, BLOCK_SIZE);
 
-    err = gpu::setKernelArgs(reductionKernelWide, normalizeCoverageArgs); PRINT_ON_ERROR;
-    err = gpu::launch1dKernelWithRoundup(reductionKernelWide, previous.num_documents, blockSize); PRINT_ON_ERROR;
+    cl_mem modelSums = linalg::reduceTall(current.topic_models_d, previous.num_topics, previous.vocab_size, BLOCK_SIZE, &err); PRINT_ON_ERROR;
 
-    cl_mem modelSums = linalg::reduceTall(topic_models_d, previous.num_topics, previous.vocab_size, blockSize, reductionKernelTall, &err); PRINT_ON_ERROR;
-
-    cl_mem *normalizeModelArgsList[4] = {&topic_models_d, &modelSums, (cl_mem*) &previous.num_topics, (cl_mem*) &previous.vocab_size};
+    cl_mem *normalizeModelArgsList[4] = {&current.topic_models_d, &modelSums, (cl_mem*) &previous.num_topics, (cl_mem*) &previous.vocab_size};
     ListWithSize<cl_mem*> normalizeModelArgs(4, normalizeModelArgsList);
     
     // Normalize the output
     err = gpu::setKernelArgs(normalizationKernel, normalizeCoverageArgs); PRINT_ON_ERROR;
-    err = gpu::launch2dKernelWithRoundup(normalizationKernel, previous.num_documents, previous.num_topics, blockSize, 1); PRINT_ON_ERROR;
+    err = gpu::launch2dKernelWithRoundup(normalizationKernel, previous.num_documents, previous.num_topics, BLOCK_SIZE, 1); PRINT_ON_ERROR;
 
     err = gpu::setKernelArgs(normalizationKernel, normalizeModelArgs); PRINT_ON_ERROR;
-    err = gpu::launch2dKernelWithRoundup(normalizationKernel, previous.num_topics, previous.vocab_size, 1, blockSize); PRINT_ON_ERROR;
-
-    // Cleanup
-    err = gpu::copyDeviceToHost<double>(document_coverage_d, current.document_coverage, previous.num_topics * previous.num_documents); PRINT_ON_ERROR;
-    err = gpu::copyDeviceToHost<double>(topic_models_d, current.topic_models, previous.num_topics * previous.vocab_size); PRINT_ON_ERROR;
+    err = gpu::launch2dKernelWithRoundup(normalizationKernel, previous.num_topics, previous.vocab_size, 1, BLOCK_SIZE); PRINT_ON_ERROR;
 
     clReleaseMemObject(modelSums); PRINT_ON_ERROR;
     clReleaseMemObject(coverageSums); PRINT_ON_ERROR;
-    clReleaseMemObject(document_coverage_d); PRINT_ON_ERROR;
-    clReleaseMemObject(topic_models_d); PRINT_ON_ERROR;
-    clReleaseMemObject(prev_document_coverage_d); PRINT_ON_ERROR;
-    clReleaseMemObject(prev_topic_models_d); PRINT_ON_ERROR;
 }
 
 bool isConverged(const EMstep &first, const EMstep &second) {
@@ -324,6 +329,48 @@ bool isConverged(const EMstep &first, const EMstep &second) {
     cout << "Model error: " << error_norm_model << endl;
     cout << "Coverage error: " << error_norm_coverage << endl;
     cout << endl;
+
+    return (error_norm_model < 2 && error_norm_coverage < 30);
+}
+
+bool isConvergedGpu(EMstep &first, EMstep &second, cl_mem coveragebuf_d, cl_mem modelbuf_d) {
+    // Check for convergence by subtracting the vectors and using an L1-norm over all values
+    cl_int err = CL_SUCCESS;
+    cl_kernel differenceKernel = gpu::compileKernelFromFile("kernels/basic.cl", "vectorAbsDiff", &err); PRINT_ON_ERROR;
+
+    // Vector of absolute differences - document coverage
+    size_t num_coverage = first.num_documents * first.num_topics;
+    
+    cl_mem *coverageArgsList[4] = {&first.document_coverage_d, &second.document_coverage_d, &coveragebuf_d, (cl_mem*) &num_coverage};
+    ListWithSize<cl_mem*> coverageArgs(4, coverageArgsList);
+
+    err = gpu::setKernelArgs(differenceKernel, coverageArgs); PRINT_ON_ERROR;
+    err = gpu::launch1dKernelWithRoundup(differenceKernel, num_coverage, BLOCK_SIZE);
+
+    // Vector of absolute differences - topic models 
+    size_t num_models = first.num_topics * first.vocab_size;
+
+    cl_mem *modelArgsList[4] = {&first.topic_models_d, &second.topic_models_d, &modelbuf_d, (cl_mem*) &num_models};
+    ListWithSize<cl_mem*> modelArgs(4, modelArgsList);
+
+    err = gpu::setKernelArgs(differenceKernel, modelArgs); PRINT_ON_ERROR;
+    err = gpu::launch1dKernelWithRoundup(differenceKernel, num_models, BLOCK_SIZE); PRINT_ON_ERROR;
+
+    // Reduce to get final error
+    cl_mem coverage_err = linalg::reduceTall(coveragebuf_d, 1, num_coverage, BLOCK_SIZE, &err); PRINT_ON_ERROR;
+    cl_mem model_err = linalg::reduceTall(modelbuf_d, 1, num_models, BLOCK_SIZE, &err); PRINT_ON_ERROR;
+
+    double error_norm_coverage, error_norm_model;
+
+    gpu::deviceToHostCopy<double>(coverage_err, &error_norm_coverage, 1);
+    gpu::deviceToHostCopy<double>(model_err, &error_norm_model, 1);
+
+    cout << "Model error: " << error_norm_model << endl;
+    cout << "Coverage error: " << error_norm_coverage << endl;
+    cout << endl;
+
+    clReleaseMemObject(coverage_err);
+    clReleaseMemObject(model_err);
 
     return (error_norm_model < 2 && error_norm_coverage < 30);
 }

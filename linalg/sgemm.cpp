@@ -67,7 +67,7 @@ cl_int linalg::sgemm(double *A, double *B, double *C, unsigned int M, unsigned i
     err = gpu::launchKernel(sgemm_kernel, gridDim, blockDim); RETURN_ON_ERROR;
 
     // Copy the output back
-    err = gpu::copyDeviceToHost<double>(C_d, C_info); RETURN_ON_ERROR;
+    err = gpu::deviceToHostCopy<double>(C_d, C_info); RETURN_ON_ERROR;
     
     // Cleanup
     clReleaseMemObject(A_d);

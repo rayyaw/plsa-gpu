@@ -1,4 +1,3 @@
-// FIXME - Suboptimal version
 __kernel void reduceAlongMajorAxisWide(
     __global const double *arr, 
     __global double *outputs, 
@@ -52,9 +51,7 @@ __kernel void reduceAlongMajorAxisTall(
     }
 
     // Store the final result in global memory
-    // FIXME - Don't use global atomics as this is slow!
     if (localID == 0) {
-        // FIXME - we need atomics
         output[majorAxis * numGroups + groupID] = localData[0];
     }
 }
