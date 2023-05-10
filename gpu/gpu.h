@@ -9,13 +9,15 @@
 using std::map;
 using std::string;
 
+using utils::ListWithSize;
+
 #define MAX_DEVICES 16
 #define FOR_ALL_DEVICES(stmt) for (size_t i = 0; i < devices -> num_items; i++) {stmt;}
 #define SET_ERROR_IF_NULL cl_int local_err; if (err == NULL) err = &local_err;
 #define RETURN_ON_ERROR if (CL_SUCCESS != err) return err;
 
-extern utils::ListWithSize<cl_device_id> *devices;
-extern utils::ListWithSize<cl_command_queue> *command_queues;
+extern ListWithSize<cl_device_id> *devices;
+extern ListWithSize<cl_command_queue> *command_queues;
 extern cl_context *context;
 extern map<const char*, cl_kernel> *available_kernels;
 
@@ -46,8 +48,8 @@ namespace gpu {
 
     // Saves the hassle of creating these manually
     // Create a ListWithSize of dimension 2 or 3 to store the grid or block dimensions
-    utils::ListWithSize<size_t> makeDim2(size_t fst, size_t snd);
-    utils::ListWithSize<size_t> makeDim3(size_t fst, size_t snd, size_t trd);
+    ListWithSize<size_t> makeDim2(size_t fst, size_t snd);
+    ListWithSize<size_t> makeDim3(size_t fst, size_t snd, size_t trd);
 
     /**
      * @brief Create the GPU kernel by compiling the given code. Must be destroyed manually. May be used multiple times.
@@ -88,6 +90,15 @@ namespace gpu {
     cl_kernel compileKernelFromFile(const char *filename, const char *kernelName, cl_int *err);
 
     /**
+     * @brief Set all kernel args in a single function call.
+     * 
+     * @param kernel The kernel to use
+     * @param args The args to set
+     * @return cl_int An error code, or CL_SUCCESS if none occurred
+     */
+    cl_int setKernelArgs(cl_kernel &kernel, const ListWithSize<cl_mem*> &args);
+
+    /**
      * @brief Create a device memory array, and copy the host memory onto it
      * 
      * @param hostMem The host memory, along with its length. num_items should be the number of ITEMS, not bytes.
@@ -95,7 +106,7 @@ namespace gpu {
      * @return cl_mem The device global memory that was allocated. It is your responsibility to release it.
      */
     template <typename T>
-    cl_mem hostToDeviceCopy(utils::ListWithSize<T> hostMem, cl_int *err) {
+    cl_mem hostToDeviceCopy(ListWithSize<T> hostMem, cl_int *err) {
         SET_ERROR_IF_NULL;
         return clCreateBuffer(*context, CL_MEM_COPY_HOST_PTR, hostMem.num_items * sizeof(T), hostMem.items, err);
     }
@@ -140,7 +151,7 @@ namespace gpu {
      * @return cl_int An error code, or CL_SUCCESS if no error occurred
      */
     template <typename T>
-    cl_int copyDeviceToHost(cl_mem deviceMem, utils::ListWithSize<T> hostMem) {
+    cl_int copyDeviceToHost(cl_mem deviceMem, ListWithSize<T> hostMem) {
         return clEnqueueReadBuffer(command_queues -> items[0], deviceMem, CL_TRUE, 0, hostMem.num_items * sizeof(T), hostMem.items, 0, NULL, NULL);
     }
 
@@ -156,7 +167,6 @@ namespace gpu {
         return clEnqueueReadBuffer(command_queues -> items[0], deviceMem, CL_TRUE, 0, nitems * sizeof(T), hostMem, 0, NULL, NULL);
     }
 
-
     /**
      * @brief Launch the specified kernel, and block until it's done.
      * 
@@ -165,5 +175,5 @@ namespace gpu {
      * @param blockDim Block dimensions
      * @return cl_int An error code, or CL_SUCCESS if no error occurred
      */
-    cl_int launchKernel(cl_kernel kernel, utils::ListWithSize<size_t> gridDim, utils::ListWithSize<size_t> blockDim);
+    cl_int launchKernel(cl_kernel kernel, ListWithSize<size_t> gridDim, ListWithSize<size_t> blockDim);
 }

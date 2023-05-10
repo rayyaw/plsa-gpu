@@ -94,15 +94,11 @@ cl_int linalg::sgemmDevice(cl_mem A, cl_mem B, cl_mem C, unsigned int M, unsigne
     // the max in OpenCL is 256
     size_t blockSize = 16;
 
-    utils::ListWithSize<size_t> gridDim = utils::ListWithSize<size_t>();
-    gridDim.num_items = 2;
-    gridDim.items = new size_t[2];
+    utils::ListWithSize<size_t> gridDim = utils::ListWithSize<size_t>(2);
     gridDim.items[0] = ceil((M * 1.0) / blockSize) * blockSize;
     gridDim.items[1] = ceil((N * 1.0) / blockSize) * blockSize;
 
-    utils::ListWithSize<size_t> blockDim = utils::ListWithSize<size_t>();
-    blockDim.num_items = 2;
-    blockDim.items = new size_t[2];
+    utils::ListWithSize<size_t> blockDim = utils::ListWithSize<size_t>(2);
     blockDim.items[0] = blockSize;
     blockDim.items[1] = blockSize;
 

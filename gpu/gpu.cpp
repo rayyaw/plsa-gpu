@@ -153,9 +153,7 @@ GpuProps gpu::getDeviceProps(cl_device_id device) {
 }
 
 ListWithSize<size_t> gpu::makeDim2(size_t fst, size_t snd) {
-    ListWithSize<size_t> lst = ListWithSize<size_t>();
-    lst.num_items = 2;
-    lst.items = new size_t[2];
+    ListWithSize<size_t> lst = ListWithSize<size_t>(2);
     lst.items[0] = fst;
     lst.items[1] = snd;
 
@@ -163,9 +161,7 @@ ListWithSize<size_t> gpu::makeDim2(size_t fst, size_t snd) {
 }
 
 ListWithSize<size_t> gpu::makeDim3(size_t fst, size_t snd, size_t trd) {
-    ListWithSize<size_t> lst = ListWithSize<size_t>();
-    lst.num_items = 3;
-    lst.items = new size_t[3];
+    ListWithSize<size_t> lst = ListWithSize<size_t>(3);
     lst.items[0] = fst;
     lst.items[1] = snd;
     lst.items[2] = trd;
@@ -212,6 +208,16 @@ cl_kernel gpu::compileKernelFromFile(const char *filename, const char *kernelNam
     }
 
     return (*available_kernels)[kernelName];
+}
+
+cl_int gpu::setKernelArgs(cl_kernel &kernel, const ListWithSize<cl_mem*> &args) {
+    cl_int err = CL_SUCCESS;
+
+    for (int i = 0; i < args.num_items; i++) {
+        clSetKernelArg(kernel, i, sizeof(args.items[i]), (void*) args.items[i]);
+    }
+
+    return err;
 }
 
 cl_mem gpu::deviceOutputAllocate(size_t nbytes, cl_int *err) {
